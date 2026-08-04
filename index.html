@@ -175,8 +175,8 @@ const MAX_UNDO=30;
 const SECS=[
   {key:"targets",   label:"Target",    icon:"🎯",color:"#3b82f6"},
   {key:"progress",  label:"Progress",  icon:"🔄",color:"#f59e0b"},
-  {key:"hasil",     label:"Hasil",     icon:"✅",color:"#10b981"},
-  {key:"pengalaman",label:"Pengalaman",icon:"💡",color:"#8b5cf6"},
+  {key:"hasil",     label:"Result",     icon:"✅",color:"#10b981"},
+  {key:"pengalaman",label:"Experience",icon:"💡",color:"#8b5cf6"},
 ];
 const HAS_DONE=new Set(["targets","progress"]);
 
@@ -224,10 +224,28 @@ let S={
 };
 
 // ── Server API ─────────────────────────────────────────────────────
-async function loadFromServer(){
-  try{const r=await fetch("/api/data");if(!r.ok)return;const d=await r.json();if(d.data)S.data=d.data;if(d.members)S.members=d.members;}catch(e){}
+S.loaded=false;
+S.loadFailed=false; // only true after all retries exhausted
+
+async function loadFromServer(silent=false){
+  try{
+    const r=await fetch("/api/data");
+    if(!r.ok)throw new Error("bad response");
+    const d=await r.json();
+    if(d.data)S.data=d.data;
+    if(d.members)S.members=d.members;
+    S.loaded=true;
+  }catch(e){
+    S.loaded=false;
+    console.error("Gagal load data dari server:",e);
+  }
 }
 async function saveToServer(){
+  // SAFETY: never save if initial load never succeeded — prevents wiping data.json with empty state
+  if(!S.loaded){
+    console.warn("Save diblokir: data belum berhasil dimuat dari server.");
+    return;
+  }
   try{
     await fetch("/api/data",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:S.data,members:S.members})});
     const ind=document.getElementById("save-ind");
@@ -332,12 +350,13 @@ function buildPt(pt,realIdx,secKey,color,wk,mi,onChange){
 
   main.append(num,textEl,acts);div.appendChild(main);
 
-  // Meta row
-  const meta=el("div",{className:"pt-meta"});
-  meta.appendChild(el("span",{},"📅 "+fmtD(pt.createdAt)));
-  if(isDone&&pt.doneAt)meta.appendChild(el("span",{className:"done-ts"},"✓ "+fmtDT(pt.doneAt)));
-  if(isInc&&pt.incompleteAt)meta.appendChild(el("span",{className:"inc-ts"},"✗ "+fmtDT(pt.incompleteAt)));
-  div.appendChild(meta);
+  // Meta row — date removed (shown as group header instead), keep done/inc status
+  if((isDone&&pt.doneAt)||(isInc&&pt.incompleteAt)){
+    const meta=el("div",{className:"pt-meta"});
+    if(isDone&&pt.doneAt)meta.appendChild(el("span",{className:"done-ts"},"✓ "+fmtDT(pt.doneAt)));
+    if(isInc&&pt.incompleteAt)meta.appendChild(el("span",{className:"inc-ts"},"✗ "+fmtDT(pt.incompleteAt)));
+    div.appendChild(meta);
+  }
 
   // Sub list (expanded only — no preview when collapsed)
   if(isExp&&pt.subs&&pt.subs.length){
@@ -432,26 +451,17 @@ function buildSection(secKey,wk,mi,data,onDataChange){
   const hasAnySubs=pts.some(p=>p.subs&&p.subs.length);
 
   const wrap=el("div",{});
-  const sh=el("div",{className:"sec-hdr"});
-  const sl=el("div",{className:"sec-hdr-l"});
-  sl.append(el("span",{style:{fontSize:"12px"}},sec.icon));
-  const sn=el("span",{style:{fontSize:"12px",fontWeight:600,color:sec.color}},sec.label);
-  sl.appendChild(sn);
-  if(pts.length){
-    const cnt=el("span",{className:"sec-cnt"});
-    cnt.style.cssText=`background:${sec.color}15;color:${sec.color};`;
-    cnt.textContent=hasDone?`${doneC}✓ ${incC>0?incC+"✗ ":""}${pts.length}`:String(pts.length);
-    sl.appendChild(cnt);
-  }
-  sh.appendChild(sl);
+
+  // Show all sub toggle only if needed
   if(hasAnySubs){
+    const sh=el("div",{style:{display:"flex",justifyContent:"flex-end",marginBottom:"4px"}});
     const allExp=pts.filter(p=>p.subs&&p.subs.length).every(p=>S.expandedSubs[`${wk}-${mi}-${secKey}-${p.id}`]);
     const sab=el("button",{className:"showall-btn"+(allExp?" open":""),onclick:()=>{
       pts.forEach(p=>{if(p.subs&&p.subs.length)S.expandedSubs[`${wk}-${mi}-${secKey}-${p.id}`]=!allExp;});render();
     }});
     sab.textContent=allExp?"▲ Sembunyikan":"▼ Show all";sh.appendChild(sab);
+    wrap.appendChild(sh);
   }
-  wrap.appendChild(sh);
 
   // Filter + search
   const q=(S.searchQ||"").toLowerCase().trim();
@@ -470,8 +480,18 @@ function buildSection(secKey,wk,mi,data,onDataChange){
   } else if(!visible.length){
     plist.appendChild(el("div",{className:"no-pts",style:{color:"#9ca3af"}},"Tidak ada poin yang cocok"));
   }
+  // Group consecutive visible points by date (fmtD of createdAt)
+  let lastDateKey=null;
   visible.forEach(pt=>{
     const ri=pts.indexOf(pt);
+    const dateKey=fmtD(pt.createdAt);
+    if(dateKey!==lastDateKey){
+      const dh=el("div",{});
+      dh.style.cssText="font-size:11px;color:#9ca3af;font-family:monospace;margin:8px 0 4px;";
+      dh.textContent=dateKey;
+      plist.appendChild(dh);
+      lastDateKey=dateKey;
+    }
     plist.appendChild(buildPt(pt,ri,secKey,sec.color,wk,mi,(updated)=>{
       const np=updated===null?pts.filter((_,j)=>j!==ri):pts.map((p,j)=>j===ri?updated:p);
       const now=new Date().toISOString();
@@ -656,8 +676,17 @@ function buildSectionReadEdit(secKey,wk,mi,data,onDataChange,sec,pts){
     wrap.appendChild(el("div",{style:{fontSize:"11px",color:"#9ca3af",padding:"2px 0"}},"Tidak ada yang cocok"));
     return wrap;
   }
+  let lastDateKey=null;
   visible.forEach(pt=>{
     const ri=pts.indexOf(pt);
+    const dateKey=fmtD(pt.createdAt);
+    if(dateKey!==lastDateKey){
+      const dh=el("div",{});
+      dh.style.cssText="font-size:11px;color:#9ca3af;font-family:monospace;margin:8px 0 4px;";
+      dh.textContent=dateKey;
+      wrap.appendChild(dh);
+      lastDateKey=dateKey;
+    }
     wrap.appendChild(buildPt(pt,ri,secKey,sec.color,wk,mi,(updated)=>{
       const np=updated===null?pts.filter((_,j)=>j!==ri):pts.map((p,j)=>j===ri?updated:p);
       const now=new Date().toISOString();
@@ -928,23 +957,53 @@ function buildDashCard(mi,wk,data){
 }
 
 // ── Exports ────────────────────────────────────────────────────────
-function exportCSV(){
-  let csv="Minggu,Nama,Section,No,Poin,Status,Tgl Selesai,Sub-poin\n";
-  getWeeks().forEach(w=>{
-    S.members.forEach((m,i)=>{
-      const md=S.data?.[w]?.[i]||{};
-      SECS.forEach(s=>{
-        (md[s.key]||[]).forEach((pt,pi)=>{
-          const subs=(pt.subs||[]).map(sb=>`[${fmtD(sb.createdAt)}] ${sb.text}`).join(" | ");
-          csv+=[weekLabel(w),m,s.label,pi+1,pt.text,pt.status||"open",pt.doneAt?fmtD(pt.doneAt):"",subs].map(v=>`"${(v||"").replace(/"/g,'""')}"`).join(",")+"\n";
+function exportExcel(){
+  if(!window.XLSX){
+    const script=document.createElement("script");
+    script.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    script.onload=()=>doExportExcel();
+    document.head.appendChild(script);
+  } else {
+    doExportExcel();
+  }
+}
+
+function doExportExcel(){
+  const wb=XLSX.utils.book_new();
+  const weeks=getWeeks();
+
+  S.members.forEach((member,mi)=>{
+    const rows=[];
+    rows.push(["Minggu","Kategori","No","Poin","Status","Tgl Poin","Tgl Selesai","Updates"]);
+
+    weeks.forEach(wk=>{
+      const md=S.data?.[wk]?.[mi]||{};
+      const hasAny=SECS.some(s=>(md[s.key]||[]).length>0);
+      if(!hasAny)return;
+
+      SECS.forEach(sec=>{
+        const pts=md[sec.key]||[];
+        pts.forEach((pt,pi)=>{
+          const subs=(pt.subs||[]).map(sb=>`[${fmtD(sb.createdAt)}] ${sb.text}`).join("\n");
+          rows.push([
+            weekLabel(wk),sec.label,pi+1,pt.text,
+            pt.status==="done"?"Done":pt.status==="incomplete"?"Incomplete":"Open",
+            fmtD(pt.createdAt),
+            pt.doneAt?fmtD(pt.doneAt):"",
+            subs
+          ]);
         });
       });
     });
+
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"]=[{wch:20},{wch:12},{wch:4},{wch:50},{wch:12},{wch:14},{wch:14},{wch:40}];
+    XLSX.utils.book_append_sheet(wb,ws,member.slice(0,31));
   });
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}));
-  a.download=`meeting-${new Date().toISOString().split("T")[0]}.csv`;
-  a.click();showToast("CSV diexport!");
+
+  const date=new Date().toISOString().split("T")[0];
+  XLSX.writeFile(wb,`meeting-${date}.xlsx`);
+  showToast("Excel diexport!");
 }
 
 function exportPDF(){
@@ -980,6 +1039,27 @@ function exportPDF(){
 // ── Render ─────────────────────────────────────────────────────────
 function render(){
   const app=document.getElementById("app");app.innerHTML="";
+
+  // Not loaded yet: show loading or failure state, never allow interaction
+  if(!S.loaded){
+    if(S.loadFailed){
+      const warn=el("div",{});
+      warn.style.cssText="background:#fee2e2;color:#7f1d1d;padding:14px 20px;text-align:center;font-size:13px;font-weight:600;border-bottom:2px solid #ef4444;";
+      warn.textContent="⚠️ Gagal memuat data dari server — data TIDAK akan tersimpan sampai masalah ini selesai. Pastikan server (start.command) sedang jalan, lalu coba lagi.";
+      app.appendChild(warn);
+      const retryBtn=el("button",{onclick:()=>{S.loadFailed=false;initialLoad(3);}});
+      retryBtn.style.cssText="display:block;margin:12px auto;background:#1e293b;color:#fff;border:none;border-radius:7px;padding:8px 20px;font-size:13px;";
+      retryBtn.textContent="🔄 Coba lagi";
+      app.appendChild(retryBtn);
+    } else {
+      const loading=el("div",{});
+      loading.style.cssText="padding:40px;text-align:center;color:#9ca3af;font-size:13px;";
+      loading.textContent="Memuat data...";
+      app.appendChild(loading);
+    }
+    return;
+  }
+
   const curWeek=S.curWeek,prevWeek=getPrev(),weeks=getWeeks();
   const selDash=S.dashWeek||weeks[0]||curWeek;
   const selHist=S.histWeek||weeks.find(w=>w!==curWeek)||curWeek;
@@ -1074,9 +1154,9 @@ function render(){
     redoB.style.cssText=`background:${S.redoStack.length?"#f0fdf4":"none"};border:1px solid ${S.redoStack.length?"#86efac":"#f0f0f0"};color:${S.redoStack.length?"#16a34a":"#9ca3af"};border-radius:6px;padding:4px 9px;font-size:12px;display:flex;align-items:center;gap:3px;`;
     redoB.appendChild(document.createTextNode("↪ Redo"));
     if(S.redoStack.length)redoB.appendChild(el("span",{style:{fontSize:"9px",background:"#86efac",color:"#16a34a",borderRadius:"8px",padding:"1px 4px",fontWeight:700}},String(S.redoStack.length)));
-    const csvB=el("button",{onclick:exportCSV});
+    const csvB=el("button",{onclick:exportExcel});
     csvB.style.cssText="background:none;border:1px solid #f0f0f0;color:#9ca3af;border-radius:6px;padding:4px 9px;font-size:12px;";
-    csvB.textContent="↓ CSV";
+    csvB.textContent="↓ Excel";
     const saveInd=el("div",{id:"save-ind"});
     saveInd.style.cssText="font-size:11px;color:#10b981;opacity:0;transition:opacity 0.4s;font-weight:500;white-space:nowrap;";
     rside.append(undoB,redoB,csvB,saveInd);
@@ -1225,7 +1305,18 @@ document.addEventListener("keydown",e=>{
   if((e.ctrlKey||e.metaKey)&&(e.key==="y"||(e.key==="z"&&e.shiftKey))){e.preventDefault();redo();}
 });
 
-loadFromServer().then(()=>render());
+// Load from server on startup, with retry in case server not ready yet
+async function initialLoad(retriesLeft=5){
+  await loadFromServer(true);
+  if(!S.loaded && retriesLeft>0){
+    render(); // show "loading" state
+    await new Promise(res=>setTimeout(res,800));
+    return initialLoad(retriesLeft-1);
+  }
+  if(!S.loaded)S.loadFailed=true;
+  render();
+}
+initialLoad();
 </script>
 </body>
 </html>
