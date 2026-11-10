@@ -1608,13 +1608,6 @@ function render(){
 
     topbar.appendChild(el("div",{className:"tb-sep"}));
 
-    // Recap Lalu toggle
-    if(prevWeek){
-      const rb=el("button",{className:"ghost-btn"+(S.showPrev?" on":""),onclick:()=>{S.showPrev=!S.showPrev;render();}});
-      rb.textContent=(S.showPrev?"▼":"▶")+" Recap";topbar.appendChild(rb);
-      topbar.appendChild(el("div",{className:"tb-sep"}));
-    }
-
     // Undo / Redo / CSV on right
     const rside=el("div",{style:{marginLeft:"auto",display:"flex",alignItems:"center",gap:"5px"}});
     const undoB=el("button",{onclick:undo,title:"Ctrl+Z"});
@@ -1658,13 +1651,12 @@ function render(){
   // ── MEETING
   if(S.view==="meeting"){
     const twoCol=el("div",{className:"two-col"});
-    twoCol.style.gridTemplateColumns=(prevWeek&&S.showPrev)?"1fr 1fr":"1fr";
+    twoCol.style.gridTemplateColumns="1fr";
     const lc=el("div",{});
     lc.appendChild(buildCurrentCard(curWeek,S.activeMember,S.data,persist));
     const sr=el("div",{className:"save-row"});
     sr.appendChild(el("button",{className:"save-btn",onclick:()=>showToast(`${S.members[S.activeMember]} tersimpan ✓`)},"Simpan ✓"));
     lc.appendChild(sr);twoCol.appendChild(lc);
-    if(prevWeek&&S.showPrev)twoCol.appendChild(buildRecapCard(prevWeek,S.activeMember,S.data,persist,true));
     content.appendChild(twoCol);
   }
 
