@@ -1198,7 +1198,7 @@ function submitSalesForm(){
   const bad=[];for(let k=0;k<4;k++)if(e.s[k]!=null&&e.g[k]!=null&&e.g[k]>e.s[k])bad.push(BRANDS[k]);
   if(bad.length&&!window.confirm("Gross Profit lebih besar dari Sales untuk: "+bad.join(", ")+".\nBiasanya ini salah ketik. Tetap simpan?"))return;
   const blank=vals.filter(v=>v==null).length;
-  if(blank>0&&blank<9&&!window.confirm(blank+" kotak masih kosong.\nKosong = belum diisi (Margin/Profit Akhir tidak dihitung). Isi 0 jika memang tidak ada.\nTetap simpan?"))return;
+  if(blank>0&&blank<9&&!window.confirm(blank+" kotak masih kosong.\nKosong = belum diisi (Total Margin tidak dihitung). Isi 0 jika memang tidak ada.\nTetap simpan?"))return;
   if(blank===9){f.err="Semua kotak kosong.";render();return;}
   setEntry(S.salesYear,f.mi,e);S.salesForm=null;scheduleSalesSave();showToast(MONTHS_ID[f.mi]+" "+S.salesYear+" disimpan");
 }
@@ -1217,14 +1217,14 @@ function ensureXlsx(cb){
 function exportSalesExcel(){
   ensureXlsx(()=>{
     const y=S.salesYear;
-    const head=["Bulan",...BRANDS.map(b=>"Sales "+b),"Total Sales",...BRANDS.map(b=>"GP "+b),"Total GP",...BRANDS.map(b=>"Margin % "+b),"Total Margin %","Pengeluaran","Profit Akhir"];
+    const head=["Bulan",...BRANDS.map(b=>"Sales "+b),"Total Sales",...BRANDS.map(b=>"GP "+b),"Total GP",...BRANDS.map(b=>"Margin % "+b),"Total Margin %","Expenses","Net Profit","Net Profit %"];
     const rows=[["Offline Sales "+y+" (Rp juta)"],[],head];
     for(let mi=0;mi<12;mi++){
       const e=getEntry(y,mi),c=calc(e);
       if(!entryHas(e)){rows.push([MONTHS_ID[mi]]);continue;}
       rows.push([MONTHS_ID[mi],...e.s,c.sAny?c.sSum:null,...e.g,c.gAny?c.gSum:null,
         ...e.s.map((s,k)=>{const p=pctOf(e.g[k],s);return p==null?null:Math.round(p*10)/10;}),
-        (c.sAll&&c.gAll&&c.sSum>0)?Math.round(c.gSum/c.sSum*1000)/10:null,e.ex,c.full?c.gSum-e.ex:null]);
+        (c.sAll&&c.gAll&&c.sSum>0)?Math.round(c.gSum/c.sSum*1000)/10:null,e.ex,(c.gAny&&e.ex!=null)?c.gSum-e.ex:null,(c.gAny&&e.ex!=null&&c.sSum>0)?Math.round((c.gSum-e.ex)/c.sSum*1000)/10:null]);
     }
     const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"Offline Sales "+y);XLSX.writeFile(wb,"offline-sales-"+y+".xlsx");
@@ -1271,7 +1271,7 @@ function buildSalesContent(ct){
   const bs=[0,0,0,0],bg=[0,0,0,0],bsp=[0,0,0,0],bgp=[0,0,0,0];
   ents.forEach((e,i)=>{
     const c=cs[i];if(!entryHas(e))return;nm++;TS+=c.sSum;TG+=c.gSum;if(e.ex!=null)TE+=e.ex;
-    if(c.full)TP+=c.gSum-e.ex;
+    if(c.gAny&&e.ex!=null)TP+=c.gSum-e.ex;
     if(c.sAll&&c.gAll){TSf+=c.sSum;TGf+=c.gSum;}
     for(let k=0;k<4;k++){bs[k]+=e.s[k]||0;bg[k]+=e.g[k]||0;if(e.s[k]!=null&&e.g[k]!=null){bsp[k]+=e.s[k];bgp[k]+=e.g[k];}}
   });
@@ -1303,7 +1303,7 @@ function buildSalesContent(ct){
       g.appendChild(row);panel.appendChild(g);
     };
     const wrap=el("div",{className:"sl-fg"});panel.appendChild(wrap);
-    grp("Sales",BRANDS,0);grp("Gross Profit",BRANDS,4);grp("Pengeluaran",["Total bulan ini"],8);
+    grp("Sales",BRANDS,0);grp("Gross Profit",BRANDS,4);grp("Expenses",["Total bulan ini"],8);
     // move groups into wrap
     [...panel.querySelectorAll(".sl-grp")].forEach(g=>wrap.appendChild(g));
     if(f.err)panel.appendChild(el("div",{className:"sl-err"},f.err));
@@ -1317,15 +1317,15 @@ function buildSalesContent(ct){
   // cards
   const cards=el("div",{className:"sl-cards"});
   const card=(cls,lbl,val,sub)=>{const k=el("div",{className:"sl-k "+cls});k.append(el("small",{},lbl),el("b",{},val),el("i",{},sub));cards.appendChild(k);};
-  card("","Total Sales","Rp "+fmtN(TS)+" jt",nm+" bulan terisi");
-  card("gp","Total Gross Profit","Rp "+fmtN(TG)+" jt","margin "+fmtP(pctOf(TGf,TSf)));
-  card("ex","Pengeluaran","Rp "+fmtN(TE)+" jt",TS>0?fmtP(TE/TS*100)+" dari sales":"–");
-  card("net","Profit Akhir","Rp "+fmtN(TP)+" jt","hanya bulan yang datanya lengkap");
+  card("","Sales","Rp "+fmtN(TS)+" jt",nm+" bulan terisi");
+  card("gp","Gross Profit","Rp "+fmtN(TG)+" jt","margin "+(TS>0?fmtP(TG/TS*100):"–"));
+  card("ex","Expenses","Rp "+fmtN(TE)+" jt",TS>0?fmtP(TE/TS*100)+" dari sales":"–");
+  card("net","Net Profit","Rp "+fmtN(TP)+" jt",TS>0?fmtP(TP/TS*100)+" dari sales":"–");
   ct.appendChild(cards);
 
   // tabs
   const tabs=el("div",{className:"sl-tabs"});
-  [["all","Semua"],["sales","Sales"],["gp","Gross Profit"],["margin","Margin %"],["akhir","Profit Akhir"]].forEach(([v,l])=>{
+  [["all","Semua"],["sales","Sales"],["gp","Gross Profit"],["margin","Margin %"],["akhir","Net Profit"]].forEach(([v,l])=>{
     tabs.appendChild(el("button",{className:S.salesTab===v?"on":"",onclick:()=>{S.salesTab=v;render();}},l));
   });
   ct.appendChild(tabs);
@@ -1384,15 +1384,15 @@ function buildSalesContent(ct){
     tr.appendChild(pill(c.sAll&&c.gAll?pctOf(c.gSum,c.sSum):null));
   },[...bsp.map((s,k)=>rc(fmtP(pctOf(bgp[k],s)))),rc(fmtP(pctOf(TGf,TSf)))]);
 
-  if(show("akhir"))sect("Pengeluaran & Profit Akhir","Profit Akhir = Total GP − Pengeluaran · muncul kalau data bulan lengkap",["Total Sales","Total GP","Pengeluaran","Profit Akhir","% dari Sales"],(mi,tr)=>{
+  if(show("akhir"))sect("Expenses & Net Profit","Net Profit = Gross Profit − Expenses · % = Net Profit ÷ Sales",["Sales","Gross Profit","Expenses","Net Profit","%"],(mi,tr)=>{
     const e=ents[mi],c=cs[mi];if(!entryHas(e)){for(let i=0;i<5;i++)tr.appendChild(dash());return;}
     tr.appendChild(rc(c.sAny?fmtN(c.sSum):"–"));tr.appendChild(rc(c.gAny?fmtN(c.gSum):"–","gp"));
     tr.appendChild(vCell(mi,"ex",0,e.ex,"ex"));
-    if(c.full){const pa=c.gSum-e.ex;tr.appendChild(rc(fmtN(pa),pa>=0?"net":"neg"));tr.appendChild(rc(fmtP(pctOf(pa,c.sSum))));}
+    if(c.gAny&&e.ex!=null){const pa=c.gSum-e.ex;tr.appendChild(rc(fmtN(pa),pa>=0?"net":"neg"));tr.appendChild(rc(c.sSum>0?fmtP(pa/c.sSum*100):"–"));}
     else{tr.appendChild(dash());tr.appendChild(dash());}
-  },[rc(fmtN(TS)),rc(fmtN(TG)),rc(fmtN(TE)),rc(fmtN(TP)),rc(fmtP(pctOf(TP,TS)))]);
+  },[rc(fmtN(TS)),rc(fmtN(TG)),rc(fmtN(TE)),rc(fmtN(TP)),rc(TS>0?fmtP(TP/TS*100):"–")]);
 
-  ct.appendChild(el("div",{className:"sl-note"},"Sales per brand, Gross Profit per brand dan Pengeluaran diisi manual (form ＋ Isi bulan, atau klik dua kali di angka). Sisanya otomatis. Warna Margin: hijau ≥40%, kuning 32–40%, merah <32%."));
+  ct.appendChild(el("div",{className:"sl-note"},"Sales per brand, Gross Profit per brand dan Expenses diisi manual (form ＋ Isi bulan, atau klik dua kali di angka). Sisanya otomatis. Warna Margin: hijau ≥40%, kuning 32–40%, merah <32%."));
 }
 
 
