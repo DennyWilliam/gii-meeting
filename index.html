@@ -212,6 +212,12 @@ textarea{resize:none;}
 .sl-warn{background:#fef3c7;color:#78350f;padding:14px 18px;font-size:13px;font-weight:600;border:1px solid #f59e0b;border-radius:8px;margin-bottom:12px;}
 .sl-note{font-size:11.5px;color:#9ca3af;margin-bottom:20px;}
 @media(max-width:800px){.sl-cards{grid-template-columns:repeat(2,1fr);}.sl-fg{grid-template-columns:1fr;}}
+.sb-foot{padding:10px 12px 12px;border-top:1px solid rgba(255,255,255,0.07);}
+.sb-bk-st{font-size:10.5px;color:#64748b;margin-bottom:7px;line-height:1.35;}
+.sb-bk-st.warn{color:#fbbf24;}
+.sb-bk-row{display:flex;gap:6px;}
+.sb-bk-btn{flex:1;background:rgba(255,255,255,0.07);border:none;color:#cbd5e1;border-radius:6px;padding:6px 4px;font-size:11.5px;}
+.sb-bk-btn:hover{background:rgba(255,255,255,0.14);}
 </style>
 </head>
 <body>
@@ -1389,6 +1395,68 @@ function buildSalesContent(ct){
   ct.appendChild(el("div",{className:"sl-note"},"Sales per brand, Gross Profit per brand dan Pengeluaran diisi manual (form ＋ Isi bulan, atau klik dua kali di angka). Sisanya otomatis. Warna Margin: hijau ≥40%, kuning 32–40%, merah <32%."));
 }
 
+
+// ── Backup & Pulihkan (satu file JSON: meeting + Offline Sales) ─────
+function getLastBackup(){try{return localStorage.getItem("mm_last_backup")||"";}catch(e){return "";}}
+function setLastBackup(v){try{localStorage.setItem("mm_last_backup",v);}catch(e){}}
+async function ensureSalesLoaded(){
+  if(S.sales.loaded||!CLOUD)return S.sales.loaded;
+  try{const d=await rpc("sales_pull",{p_token:getToken()});if(d){S.sales.data=d.data||{};S.sales.base=d.updated_at;}S.sales.loaded=true;S.sales.err="";}catch(e){return false;}
+  return true;
+}
+function downloadJson(obj,name){
+  const b=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+}
+async function backupAll(silent){
+  if(!S.loaded){alert("Data belum termuat, backup dibatalkan.");return false;}
+  const okS=await ensureSalesLoaded();
+  if(CLOUD&&!okS&&!window.confirm("Data Offline Sales gagal dimuat, jadi tidak ikut di backup. Tetap backup data meeting saja?"))return false;
+  const d=new Date(),ymd=d.toISOString().slice(0,10);
+  downloadJson({app:"gii-meeting-backup",version:1,exportedAt:d.toISOString(),
+    meeting:{data:S.data,members:S.members},sales:{data:okS?S.sales.data:null}},"gii-meeting-backup-"+ymd+"-"+String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0")+".json");
+  setLastBackup(ymd);if(!silent)showToast("💾 Backup diunduh");else render();
+  return true;
+}
+function pickRestoreFile(){
+  const fi=document.createElement("input");fi.type="file";fi.accept=".json,application/json";
+  fi.addEventListener("change",()=>{
+    const f=fi.files[0];if(!f)return;
+    const rd=new FileReader();
+    rd.onload=async()=>{
+      let o;try{o=JSON.parse(rd.result);}catch(e){alert("File tidak valid (bukan JSON).");return;}
+      const meet=o.meeting||(o.data?{data:o.data,members:o.members}:null);
+      const salesD=o.sales&&o.sales.data?o.sales.data:null;
+      const mp=meet?countPoints(meet.data):0;
+      let sm=0;if(salesD)for(const y of Object.keys(salesD))for(const m of Object.keys(salesD[y]||{}))if(entryHas(salesD[y][m]))sm++;
+      if(mp===0&&sm===0){alert("File ini tidak berisi data meeting maupun Offline Sales.");return;}
+      const msg="File berisi:\n• "+mp+" poin meeting"+(meet&&meet.members?" ("+meet.members.length+" anggota)":"")+"\n• "+sm+" bulan Offline Sales"+
+        "\n\nIni akan MENGGANTI data yang ada sekarang di cloud.\nBackup data saat ini akan diunduh otomatis dulu sebagai pengaman.\n\nLanjutkan?";
+      if(!window.confirm(msg))return;
+      if(!(await backupAll(true)))return;
+      if(mp>0){S.data=meet.data;if(meet.members&&meet.members.length)S.members=meet.members;S.undoStack=[];S.redoStack=[];scheduleSave();}
+      if(sm>0&&CLOUD){
+        if(await ensureSalesLoaded()){S.sales.data=salesD;scheduleSalesSave();}
+        else alert("Data Offline Sales gagal dipulihkan (cloud tidak terjangkau). Data meeting tetap dipulihkan.");
+      }
+      render();showToast("✓ Data dipulihkan");
+    };
+    rd.readAsText(f);
+  });
+  fi.click();
+}
+function buildBackupFooter(sb){
+  const foot=el("div",{className:"sb-foot"});
+  const last=getLastBackup();
+  let old=true,txt="Belum pernah backup";
+  if(last){const days=Math.floor((Date.now()-new Date(last).getTime())/864e5);old=days>30;txt="Backup terakhir: "+last+(days>0?" ("+days+" hr lalu)":" (hari ini)");}
+  const st=el("div",{className:"sb-bk-st"+(old?" warn":"")},txt);
+  const row=el("div",{className:"sb-bk-row"});
+  row.appendChild(el("button",{className:"sb-bk-btn",onclick:()=>backupAll(false)},"💾 Backup"));
+  row.appendChild(el("button",{className:"sb-bk-btn",onclick:pickRestoreFile},"♻️ Pulihkan"));
+  foot.append(st,row);sb.appendChild(foot);
+}
 // ── Render ─────────────────────────────────────────────────────────
 function render(){
   const app=document.getElementById("app");app.innerHTML="";
@@ -1493,6 +1561,7 @@ function render(){
     b.append(dot,num,el("span",{},m));memList.appendChild(b);
   });
   sb.appendChild(memList);
+  buildBackupFooter(sb);
   shell.appendChild(sb);
 
   // ── MAIN
