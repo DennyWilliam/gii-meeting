@@ -190,8 +190,9 @@ textarea{resize:none;}
 .sl-t tr.empty td.m{color:#9ca3af;font-weight:500;}
 .sl-t tr.sum td{background:#1e293b;color:#f1f5f9;font-weight:700;border:none;}
 .sl-t tr:not(.sum):not(.empty):hover td{background:#fafbff;}
-.sl-pen{background:none;border:none;font-size:11px;opacity:0;padding:0 2px;}
-.sl-t tr:hover .sl-pen{opacity:.7;}
+.sl-pen{background:none;border:none;font-size:11px;opacity:.55;padding:0 2px;cursor:pointer;}
+.sl-t tr:hover .sl-pen{opacity:1;}
+.sl-t td.edit:hover{background:#eef2ff;outline:1px dashed #a5b4fc;outline-offset:-2px;}
 .sl-cell{width:100%;min-width:70px;text-align:right;border:1px solid #6366f1;border-radius:5px;padding:3px 6px;font-size:12.5px;}
 .pill{display:inline-block;min-width:52px;text-align:center;padding:1px 7px;border-radius:20px;font-size:11.5px;font-weight:600;}
 .pill.hi{background:#d1fae5;color:#065f46;}.pill.mid{background:#fef3c7;color:#92400e;}.pill.lo{background:#fee2e2;color:#991b1b;}
@@ -1205,7 +1206,8 @@ function submitSalesForm(){
 function commitCell(){
   const c=S.cellEdit;if(!c)return;S.cellEdit=null;
   const p=parseN(c.input.value);
-  if(p.err){showToast("Angka tidak valid, perubahan dibatalkan");return;}
+  if(p.err){showToast("Angka tidak valid, perubahan dibatalkan");render();return;}
+  if(p.v===c.old||(p.v==null&&c.old==null)){render();return;}
   const e=getEntry(S.salesYear,c.mi);
   if(c.type==="ex")e.ex=p.v;else e[c.type][c.k]=p.v;
   setEntry(S.salesYear,c.mi,e);scheduleSalesSave();render();
@@ -1247,6 +1249,7 @@ function buildSalesTopbar(tb){
 }
 
 function buildSalesContent(ct){
+  if(S.cellEdit&&S.cellEdit.input)S.cellEdit.typed=S.cellEdit.input.value; // jaga ketikan kalau layar digambar ulang (mis. toast)
   if(S.sales.conflict){
     const w=el("div",{className:"sl-warn"},"⚠️ Data Offline Sales sudah diubah dari perangkat lain. Perubahan terakhirmu BELUM tersimpan.");
     ct.appendChild(w);
@@ -1336,17 +1339,17 @@ function buildSalesContent(ct){
     td.appendChild(el("button",{className:"sl-pen",title:"Isi / edit bulan ini",onclick:()=>openSalesForm(mi)},"✏️"));return td;
   };
   const vCell=(mi,type,k,val,cls)=>{
-    const td=el("td",{className:"n "+(cls||"")+" edit",title:"Klik dua kali untuk koreksi"});
+    const td=el("td",{className:"n "+(cls||"")+" edit",title:"Klik untuk koreksi angka"});
     const ce=S.cellEdit;
     if(ce&&ce.mi===mi&&ce.type===type&&ce.k===k){
-      const inp=el("input",{type:"text",inputmode:"decimal",className:"sl-cell"});inp.value=fmtRaw(val);
+      const inp=el("input",{type:"text",inputmode:"decimal",className:"sl-cell"});inp.value=ce.typed!=null?ce.typed:fmtRaw(val);
       ce.input=inp;
       inp.addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();commitCell();}if(ev.key==="Escape"){S.cellEdit=null;render();}});
-      inp.addEventListener("blur",()=>{if(S.cellEdit===ce)commitCell();});
-      td.appendChild(inp);setTimeout(()=>{inp.focus();inp.select();},20);
+      inp.addEventListener("blur",()=>{setTimeout(()=>{if(S.cellEdit===ce&&inp.isConnected)commitCell();},0);});
+      td.appendChild(inp);setTimeout(()=>{inp.focus();if(ce.typed!=null){const n=inp.value.length;inp.setSelectionRange(n,n);}else inp.select();},20);
     } else {
       td.textContent=fmtN(val);
-      td.addEventListener("dblclick",()=>{S.cellEdit={mi,type,k,input:null};S.salesForm=null;render();});
+      td.addEventListener("click",()=>{S.cellEdit={mi,type,k,input:null,old:val};S.salesForm=null;render();});
     }
     return td;
   };
@@ -1368,12 +1371,12 @@ function buildSalesContent(ct){
   const dash=()=>el("td",{className:"n dash"},"–");
   const show=v=>S.salesTab==="all"||S.salesTab===v;
 
-  if(show("sales"))sect("Sales","klik dua kali angka untuk koreksi · total otomatis",[...BRANDS,"Total Sales"],(mi,tr)=>{
+  if(show("sales"))sect("Sales","klik angka untuk koreksi · total otomatis",[...BRANDS,"Total Sales"],(mi,tr)=>{
     const e=ents[mi],c=cs[mi];if(!entryHas(e)){for(let i=0;i<5;i++)tr.appendChild(dash());return;}
     e.s.forEach((v,k)=>tr.appendChild(vCell(mi,"s",k,v)));tr.appendChild(rc(c.sAny?fmtN(c.sSum):"–","tot"));
   },[...bs.map(v=>rc(fmtN(v))),rc(fmtN(TS))]);
 
-  if(show("gp"))sect("Gross Profit","klik dua kali angka untuk koreksi · total otomatis",[...BRANDS,"Total GP"],(mi,tr)=>{
+  if(show("gp"))sect("Gross Profit","klik angka untuk koreksi · total otomatis",[...BRANDS,"Total GP"],(mi,tr)=>{
     const e=ents[mi],c=cs[mi];if(!entryHas(e)){for(let i=0;i<5;i++)tr.appendChild(dash());return;}
     e.g.forEach((v,k)=>tr.appendChild(vCell(mi,"g",k,v,"gp")));tr.appendChild(rc(c.gAny?fmtN(c.gSum):"–","tot gp"));
   },[...bg.map(v=>rc(fmtN(v))),rc(fmtN(TG))]);
@@ -1392,7 +1395,7 @@ function buildSalesContent(ct){
     else{tr.appendChild(dash());tr.appendChild(dash());}
   },[rc(fmtN(TS)),rc(fmtN(TG)),rc(fmtN(TE)),rc(fmtN(TP)),rc(TS>0?fmtP(TP/TS*100):"–")]);
 
-  ct.appendChild(el("div",{className:"sl-note"},"Sales per brand, Gross Profit per brand dan Expenses diisi manual (form ＋ Isi bulan, atau klik dua kali di angka). Sisanya otomatis. Warna Margin: hijau ≥40%, kuning 32–40%, merah <32%."));
+  ct.appendChild(el("div",{className:"sl-note"},"Sales per brand, Gross Profit per brand dan Expenses diisi manual (form ＋ Isi bulan, atau klik langsung di angkanya untuk koreksi). Sisanya otomatis. Warna Margin: hijau ≥40%, kuning 32–40%, merah <32%."));
 }
 
 
