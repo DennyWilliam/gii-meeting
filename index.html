@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GII COMMERCE — Weekly Review</title>
+<title>MyWorking — GII COMMERCE</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#f7f8fa;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;font-size:14px;height:100vh;overflow:hidden;}
@@ -27,6 +27,15 @@ textarea{resize:none;}
 .sb-member-btn{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:#64748b;padding:6px 9px;border-radius:7px;font-size:12px;text-align:left;}
 .sb-member-btn:hover{background:rgba(255,255,255,0.05);color:#94a3b8;}
 .sb-member-btn.active{background:rgba(255,255,255,0.1);color:#e2e8f0;}
+.mt-tabs{display:flex;gap:4px;border-bottom:1px solid #eef0f3;margin-bottom:12px;}
+.mt-tab{background:none;border:none;border-bottom:2px solid transparent;color:#6b7280;padding:7px 12px;font-size:12.5px;font-weight:500;margin-bottom:-1px;}
+.mt-tab:hover{color:#111827;}
+.mt-tab.active{color:#111827;border-bottom-color:#1e293b;font-weight:600;}
+.mem-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+.mem-chip{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e5e7eb;color:#374151;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;}
+.mem-chip:hover{border-color:#94a3b8;}
+.mem-chip.active{background:#1e293b;border-color:#1e293b;color:#fff;}
+.soon-box{background:#fff;border:1px dashed #e5e7eb;border-radius:12px;padding:48px 20px;text-align:center;max-width:520px;margin:40px auto;}
 .sb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 .sb-num{font-size:10px;color:#475569;font-family:monospace;width:14px;text-align:right;flex-shrink:0;}
 .main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;}
@@ -1480,7 +1489,7 @@ function render(){
     const box=el("div",{});
     box.style.cssText="max-width:340px;margin:90px auto;padding:28px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;text-align:center;font-family:inherit;";
     const h=el("div",{});h.style.cssText="font-size:17px;font-weight:700;margin-bottom:4px;";h.textContent="GII COMMERCE";
-    const sub=el("div",{});sub.style.cssText="font-size:12.5px;color:#6b7280;margin-bottom:16px;";sub.textContent="Weekly Review — masukkan kata sandi";
+    const sub=el("div",{});sub.style.cssText="font-size:12.5px;color:#6b7280;margin-bottom:16px;";sub.textContent="MyWorking — masukkan kata sandi";
     const inp=el("input",{type:"password",placeholder:"Kata sandi"});
     inp.style.cssText="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;";
     const go=()=>{const v=inp.value.trim();if(!v)return;setToken(v);S.loginErr="";S.loadFailed=false;S.needLogin=false;initialLoad(1);};
@@ -1542,28 +1551,17 @@ function render(){
   // ── SIDEBAR
   const sb=el("div",{className:"sidebar"});
   const brand=el("div",{className:"sb-brand"});
-  brand.append(el("div",{className:"sb-brand-name"},"GII COMMERCE"),el("div",{className:"sb-brand-sub"},"Weekly Review"));
+  brand.append(el("div",{className:"sb-brand-name"},"MyWorking"),el("div",{className:"sb-brand-sub"},"GII COMMERCE"));
   sb.appendChild(brand);
 
-  [["meeting","📋","Meeting"],["history","📅","History"],["dashboard","📊","Dashboard"],["sales","🏬","Offline Sales"],["settings","⚙️","Tim"]].forEach(([v,icon,lbl])=>{
-    const b=el("button",{className:"sb-nav-btn"+(S.view===v?" active":""),onclick:()=>{S.view=v;render();}});
+  const MEET_VIEWS=["meeting","history","dashboard","settings"];
+  sb.appendChild(el("div",{className:"sb-lbl",style:{padding:"12px 16px 4px"}},"MENU"));
+  [["finance","💰","Finance"],["salary","💵","Salary"],["sales","🏬","Offline"],["meeting","📋","Meeting"]].forEach(([v,icon,lbl])=>{
+    const act=v==="meeting"?MEET_VIEWS.includes(S.view):S.view===v;
+    const b=el("button",{className:"sb-nav-btn"+(act?" active":""),onclick:()=>{S.view=v;render();}});
     b.append(el("span",{className:"sb-icon"},icon),el("span",{},lbl));sb.appendChild(b);
   });
-
-  sb.appendChild(el("div",{className:"sb-divider"}));
-  sb.appendChild(el("div",{className:"sb-lbl"},"Anggota Tim"));
-
-  const memList=el("div",{className:"sb-members"});
-  S.members.forEach((m,i)=>{
-    const md=S.data?.[curWeek]?.[i]||{};
-    const filled=SECS.some(s=>(md[s.key]||[]).length>0);
-    const isActive=S.activeMember===i&&S.view==="meeting";
-    const b=el("button",{className:"sb-member-btn"+(isActive?" active":""),onclick:()=>{S.activeMember=i;S.view="meeting";render();}});
-    const dot=el("span",{className:"sb-dot"});dot.style.background=filled?"#4ade80":"#334155";
-    const num=el("span",{className:"sb-num"},String(i+1));
-    b.append(dot,num,el("span",{},m));memList.appendChild(b);
-  });
-  sb.appendChild(memList);
+  sb.appendChild(el("div",{style:{flex:"1"}}));
   buildBackupFooter(sb);
   shell.appendChild(sb);
 
@@ -1646,10 +1644,44 @@ function render(){
     buildSalesTopbar(topbar);
   } else if(S.view==="settings"){
     topbar.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151"}},"Pengaturan Tim"));
+  } else if(S.view==="finance"){
+    topbar.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151"}},"Finance — Laporan Keuangan Bulanan"));
+  } else if(S.view==="salary"){
+    topbar.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151"}},"Salary — Gaji Bulanan"));
   }
 
   main.appendChild(topbar);
   const content=el("div",{className:"content"});
+
+  // ── MEETING sub-tabs (Input / History / Dashboard / Tim)
+  if(MEET_VIEWS.includes(S.view)){
+    const tabs=el("div",{className:"mt-tabs"});
+    [["meeting","📋 Input"],["history","📅 History"],["dashboard","📊 Dashboard"],["settings","⚙️ Tim"]].forEach(([v,lbl])=>{
+      tabs.appendChild(el("button",{className:"mt-tab"+(S.view===v?" active":""),onclick:()=>{S.view=v;render();}},lbl));
+    });
+    content.appendChild(tabs);
+  }
+  if(S.view==="meeting"){
+    const chips=el("div",{className:"mem-chips"});
+    S.members.forEach((m,i)=>{
+      const md=S.data?.[curWeek]?.[i]||{};
+      const filled=SECS.some(s=>(md[s.key]||[]).length>0);
+      const c=el("button",{className:"mem-chip"+(S.activeMember===i?" active":""),onclick:()=>{S.activeMember=i;render();}});
+      const dot=el("span",{className:"sb-dot"});dot.style.background=filled?"#22c55e":"#cbd5e1";
+      c.append(dot,el("span",{},m));chips.appendChild(c);
+    });
+    content.appendChild(chips);
+  }
+
+  // ── PLACEHOLDER Finance / Salary
+  if(S.view==="finance"||S.view==="salary"){
+    const fin=S.view==="finance";
+    const box=el("div",{className:"soon-box"});
+    box.append(el("div",{style:{fontSize:"32px"}},fin?"💰":"💵"),
+      el("div",{style:{fontSize:"15px",fontWeight:700,color:"#111827",marginTop:"8px"}},fin?"Finance":"Salary"),
+      el("div",{style:{fontSize:"12.5px",color:"#6b7280",marginTop:"4px"}},fin?"Laporan keuangan per bulan — sedang disiapkan.":"Rekap gaji per bulan — sedang disiapkan."));
+    content.appendChild(box);
+  }
 
   // ── MEETING
   if(S.view==="meeting"){
