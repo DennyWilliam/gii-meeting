@@ -35,6 +35,8 @@ textarea{resize:none;}
 .mem-chip{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e5e7eb;color:#374151;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;}
 .mem-chip:hover{border-color:#94a3b8;}
 .mem-chip.active{background:#1e293b;border-color:#1e293b;color:#fff;}
+.mem-chip-add{border-style:dashed;color:#6b7280;}
+.mem-add-inp{border:1px solid #6366f1;border-radius:20px;padding:5px 12px;font-size:12px;width:160px;}
 .soon-box{background:#fff;border:1px dashed #e5e7eb;border-radius:12px;padding:48px 20px;text-align:center;max-width:520px;margin:40px auto;}
 .sb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 .sb-num{font-size:10px;color:#475569;font-family:monospace;width:14px;text-align:right;flex-shrink:0;}
@@ -1643,7 +1645,8 @@ function render(){
   } else if(S.view==="sales"){
     buildSalesTopbar(topbar);
   } else if(S.view==="settings"){
-    topbar.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151"}},"Pengaturan Tim"));
+    topbar.appendChild(el("button",{className:"ghost-btn",onclick:()=>{S.view="meeting";render();}},"← Kembali ke Meeting"));
+    topbar.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151",marginLeft:"6px"}},"Atur Nama Anggota"));
   } else if(S.view==="finance"){
     topbar.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151"}},"Finance — Laporan Keuangan Bulanan"));
   } else if(S.view==="salary"){
@@ -1653,14 +1656,6 @@ function render(){
   main.appendChild(topbar);
   const content=el("div",{className:"content"});
 
-  // ── MEETING sub-tabs (Input / History / Dashboard / Tim)
-  if(MEET_VIEWS.includes(S.view)){
-    const tabs=el("div",{className:"mt-tabs"});
-    [["meeting","📋 Input"],["history","📅 History"],["dashboard","📊 Dashboard"],["settings","⚙️ Tim"]].forEach(([v,lbl])=>{
-      tabs.appendChild(el("button",{className:"mt-tab"+(S.view===v?" active":""),onclick:()=>{S.view=v;render();}},lbl));
-    });
-    content.appendChild(tabs);
-  }
   if(S.view==="meeting"){
     const chips=el("div",{className:"mem-chips"});
     S.members.forEach((m,i)=>{
@@ -1670,6 +1665,17 @@ function render(){
       const dot=el("span",{className:"sb-dot"});dot.style.background=filled?"#22c55e":"#cbd5e1";
       c.append(dot,el("span",{},m));chips.appendChild(c);
     });
+    if(S.addingMember){
+      const inp=el("input",{type:"text",className:"mem-add-inp",placeholder:"Nama baru, Enter"});
+      const done=()=>{const nm=inp.value.trim();S.addingMember=false;
+        if(nm){saveMembers([...S.members,nm]);S.activeMember=S.members.length-1;showToast(nm+" ditambahkan");}render();};
+      inp.onkeydown=e=>{if(e.key==="Enter")done();if(e.key==="Escape"){S.addingMember=false;render();}};
+      inp.onblur=()=>{if(S.addingMember){S.addingMember=false;render();}};
+      chips.appendChild(inp);setTimeout(()=>inp.focus(),30);
+    } else {
+      chips.appendChild(el("button",{className:"mem-chip mem-chip-add",onclick:()=>{S.addingMember=true;render();}},"+ Nama"));
+    }
+    chips.appendChild(el("button",{className:"mem-chip mem-chip-add",title:"Ubah / hapus nama",onclick:()=>{S.view="settings";render();}},"⚙️ Atur"));
     content.appendChild(chips);
   }
 
