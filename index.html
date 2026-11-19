@@ -37,6 +37,38 @@ textarea{resize:none;}
 .mem-chip.active{background:#1e293b;border-color:#1e293b;color:#fff;}
 .mem-chip-add{border-style:dashed;color:#6b7280;}
 .mem-add-inp{border:1px solid #6366f1;border-radius:20px;padding:5px 12px;font-size:12px;width:160px;}
+.sal-kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.sal-kpi>div{background:#fff;border:1px solid #f0f0f0;border-radius:10px;padding:10px 14px;}
+.sal-kpi span{display:block;font-size:11px;color:#9ca3af;}
+.sal-kpi b{display:block;font-size:18px;color:#111827;margin-top:2px;}
+.sal-g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:12px;}
+.sal-card{padding:10px 14px;margin-bottom:12px;}
+.sal-h{font-size:13px;font-weight:600;color:#111827;margin-bottom:8px;}
+.sal-bar-row{display:grid;grid-template-columns:150px 1fr 80px;gap:8px;align-items:center;font-size:12px;color:#374151;margin:4px 0;}
+.sal-bl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sal-track{height:9px;background:#f3f4f6;border-radius:5px;overflow:hidden;}
+.sal-fill{height:100%;border-radius:5px;}
+.sal-num{text-align:right;font-variant-numeric:tabular-nums;}
+.sal-empty{font-size:12px;color:#9ca3af;}
+.sal-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.sal-tbl th{text-align:left;color:#9ca3af;font-weight:500;padding:6px;border-bottom:1px solid #f0f0f0;white-space:nowrap;}
+.sal-tbl td{padding:6px;border-bottom:1px solid #f7f7f7;color:#374151;white-space:nowrap;}
+.sal-tbl .r{text-align:right;font-variant-numeric:tabular-nums;}
+.sal-tbl tr:hover td{background:#fafbff;}
+.sal-name{cursor:pointer;color:#1e293b!important;font-weight:500;}
+.sal-name:hover{text-decoration:underline;}
+.sal-tag{font-size:10px;background:#eef2ff;color:#6366f1;border-radius:10px;padding:1px 6px;margin-left:6px;font-weight:500;}
+.sal-tag-g{background:#f3f4f6;color:#6b7280;}
+.sal-bcell{cursor:pointer;color:#9ca3af!important;}
+.sal-bcell:hover{background:#eff6ff!important;}
+.sal-bi{width:110px;border:1px solid #6366f1;border-radius:5px;padding:2px 6px;font-size:12px;text-align:right;}
+.sal-up-sum{font-size:12.5px;color:#111827;margin:8px 0;font-weight:500;}
+.sal-up-w{font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:5px 9px;margin:4px 0;}
+.sal-chart{display:flex;align-items:flex-end;gap:6px;height:130px;margin:6px 0 12px;}
+.sal-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+.sal-cb{width:70%;background:#6366f1;border-radius:4px 4px 0 0;}
+.sal-cv{font-size:10px;color:#6b7280;margin-bottom:2px;}
+.sal-cl{font-size:10px;color:#9ca3af;margin-top:3px;}
 .soon-box{background:#fff;border:1px dashed #e5e7eb;border-radius:12px;padding:48px 20px;text-align:center;max-width:520px;margin:40px auto;}
 .sb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 .sb-num{font-size:10px;color:#475569;font-family:monospace;width:14px;text-align:right;flex-shrink:0;}
@@ -1471,6 +1503,257 @@ function buildBackupFooter(sb){
   row.appendChild(el("button",{className:"sb-bk-btn",onclick:pickRestoreFile},"♻️ Pulihkan"));
   foot.append(st,row);sb.appendChild(foot);
 }
+// ── SALARY ─────────────────────────────────────────────────────────
+S.sal={months:{},loaded:false,loading:false,err:"",needPass:false,passErr:"",mode:"month",month:null,year:null,pt:"all",dep:"all",q:"",person:null,sort:"g",up:null,bonusEdit:null};
+const SAL_GPO="GPO";
+function salPass(){try{return localStorage.getItem("sal_pass")||"";}catch(e){return"";}}
+function setSalPass(p){try{p?localStorage.setItem("sal_pass",p):localStorage.removeItem("sal_pass");}catch(e){}}
+function salKey(n){return String(n||"").trim().replace(/\s+/g," ").toLowerCase();}
+function salMonthLbl(m){const[y,mm]=m.split("-");return MONTHS_ID[Number(mm)-1]+" "+y;}
+function fmtJt(v){return(v/1e6).toLocaleString("id-ID",{minimumFractionDigits:1,maximumFractionDigits:1})+" jt";}
+function fmtM(v){return v>=1e9?(v/1e9).toLocaleString("id-ID",{maximumFractionDigits:2})+" M":fmtJt(v);}
+async function loadSalary(){
+  const p=salPass();
+  if(!p){S.sal.needPass=true;S.sal.loading=false;render();return;}
+  try{
+    const d=await rpc("salary_pull",{p_pass:p});
+    S.sal.months=d||{};S.sal.loaded=true;S.sal.needPass=false;S.sal.err="";
+    const ms=Object.keys(S.sal.months).sort();
+    if(!S.sal.month||!S.sal.months[S.sal.month])S.sal.month=ms[ms.length-1]||null;
+    if(!S.sal.year)S.sal.year=S.sal.month?S.sal.month.slice(0,4):String(new Date().getFullYear());
+  }catch(e){
+    if(/unauthorized/.test(e.message)){setSalPass("");S.sal.needPass=true;S.sal.passErr=p?"Kata sandi salah.":"";}
+    else S.sal.err="Gagal memuat data Salary ("+e.message+")";
+  }
+  S.sal.loading=false;render();
+}
+// Excel → baris per orang, sesuai aturan GII
+function salParse(buf,month){
+  const wb=XLSX.read(buf,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  let hi=-1;for(let i=0;i<Math.min(15,aoa.length);i++){const r=(aoa[i]||[]).map(x=>String(x||"").trim().toLowerCase());if(r.includes("nama")&&r.includes("pendapatan bruto")){hi=i;break;}}
+  if(hi<0)throw new Error("Kolom 'Nama' dan 'Pendapatan Bruto' tidak ditemukan di sheet pertama.");
+  const H=aoa[hi].map(x=>String(x||"").trim().toLowerCase());
+  const col=n=>H.indexOf(n);
+  const C={pt:col("nama pt"),st:col("status karyawan"),nama:col("nama"),nik:col("nik"),dep:col("departemen"),div:col("divisi"),pos:col("posisi"),lvl:col("level"),g:col("pendapatan bruto")};
+  for(const k of["pt","nama","nik","dep","g"])if(C[k]<0)throw new Error("Kolom wajib tidak ada: "+k);
+  const clean=v=>v==null?"":String(v).replace(/^'/,"").trim();
+  const raw=[],skipped=[];
+  for(let i=hi+1;i<aoa.length;i++){
+    const r=aoa[i]||[];const nama=clean(r[C.nama]);if(!nama)continue;
+    const g=Number(r[C.g])||0;
+    if(!clean(r[C.nik])){skipped.push({n:nama,g});continue;}
+    raw.push({n:nama,pt:clean(r[C.pt]).toUpperCase(),st:clean(r[C.st]).toUpperCase(),dep:clean(r[C.dep]).toUpperCase(),div:clean(r[C.div]).toUpperCase(),pos:clean(r[C.pos]).toUpperCase(),lvl:C.lvl>=0?clean(r[C.lvl]):"",g});
+  }
+  // bulan sebelumnya (untuk aturan pindah PT + deteksi nama baru)
+  const prevM=Object.keys(S.sal.months).filter(m=>m<month).sort().pop();
+  const prevMap={};if(prevM)(S.sal.months[prevM].rows||[]).forEach(p=>prevMap[salKey(p.n)]=p);
+  const old=S.sal.months[month];const bonusMap={};if(old)(old.rows||[]).forEach(p=>{if(p.b!=null)bonusMap[salKey(p.n)]=p.b;});
+  const grp={};raw.forEach(r=>{const k=salKey(r.n);(grp[k]=grp[k]||[]).push(r);});
+  const rows=[],warn={gpoOnly:[],moved:[],newNames:[]};
+  for(const k of Object.keys(grp)){
+    const rs=grp[k],real=rs.filter(r=>r.pt!==SAL_GPO);
+    const info=(real.filter(r=>r.st!=="RESIGN").sort((a,b)=>b.g-a.g)[0])||real[0]||rs[0];
+    let pt=info.pt;
+    const pts=[...new Set(real.map(r=>r.pt))];
+    if(!real.length){pt=SAL_GPO;warn.gpoOnly.push(info.n);}
+    else if(pts.length>1){
+      const pv=prevMap[k];
+      if(pv&&pts.includes(pv.pt))pt=pv.pt;
+      else{const rz=real.find(r=>r.st==="RESIGN");pt=rz?rz.pt:pts[0];}
+      warn.moved.push(info.n+" ("+pts.join(" → ")+", dihitung "+pt+")");
+    }
+    const g=rs.reduce((a,r)=>a+r.g,0);
+    const parts=rs.length>1?rs.map(r=>({pt:r.pt,g:r.g})):undefined;
+    if(prevM&&!prevMap[k]&&g>0)warn.newNames.push(info.n);
+    rows.push({n:info.n,pt,dep:info.dep,div:info.div,pos:info.pos,lvl:info.lvl,st:info.st,g:Math.round(g),b:bonusMap[k]??null,...(parts?{parts}:{})});
+  }
+  rows.sort((a,b)=>b.g-a.g);
+  return{rows,skipped,warn,prevM,rawCount:raw.length};
+}
+function salPickFile(){
+  const fi=el("input",{type:"file",accept:".xlsx,.xls"});
+  fi.onchange=e=>{const f=e.target.files[0];if(!f)return;
+    const mt=f.name.match(/(20\d\d)[-_ ]?(0[1-9]|1[0-2])/);
+    const month=mt?mt[1]+"-"+mt[2]:(S.sal.month||new Date().toISOString().slice(0,7));
+    const rd=new FileReader();rd.onload=()=>ensureXlsx(()=>{
+      S.sal.up={file:f.name,buf:rd.result,month,err:"",res:null};salReparse();});
+    rd.readAsArrayBuffer(f);};
+  fi.click();
+}
+function salReparse(){const u=S.sal.up;try{u.res=salParse(u.buf,u.month);u.err="";}catch(e){u.res=null;u.err=e.message;}render();}
+async function salSaveUpload(){
+  const u=S.sal.up;if(!u||!u.res||!u.res.rows.length)return;
+  const ex=S.sal.months[u.month];
+  if(ex&&!window.confirm("Data "+salMonthLbl(u.month)+" sudah ada dan akan DIGANTI (versi lama otomatis dibackup). Lanjut?"))return;
+  u.saving=true;render();
+  try{
+    const r=await rpc("salary_put_month",{p_pass:salPass(),p_month:u.month,p_rows:u.res.rows,p_file:u.file,p_base:ex?ex.updated_at:null});
+    S.sal.months[u.month]={rows:u.res.rows,file:u.file,updated_at:r.updated_at};
+    S.sal.month=u.month;S.sal.year=u.month.slice(0,4);S.sal.mode="month";S.sal.up=null;showToast(salMonthLbl(u.month)+" tersimpan ✓");
+  }catch(e){u.saving=false;
+    if(/conflict/.test(e.message)){u.err="Data bulan ini baru diubah dari perangkat lain. Muat ulang dulu.";S.sal.loaded=false;}
+    else if(/unauthorized/.test(e.message)){setSalPass("");S.sal.needPass=true;S.sal.up=null;}
+    else u.err="Gagal simpan: "+e.message;
+    render();}
+}
+async function salSaveBonus(month,name,val){
+  const m=S.sal.months[month];if(!m)return;
+  const rows=m.rows.map(r=>salKey(r.n)===salKey(name)?{...r,b:val}:r);
+  try{
+    const r=await rpc("salary_put_month",{p_pass:salPass(),p_month:month,p_rows:rows,p_file:m.file,p_base:m.updated_at});
+    S.sal.months[month]={...m,rows,updated_at:r.updated_at};showToast("Bonus tersimpan ✓");
+  }catch(e){showToast(/conflict/.test(e.message)?"⚠ Data diubah dari perangkat lain, muat ulang":"⚠ Gagal simpan bonus");if(/conflict/.test(e.message)){S.sal.loaded=false;}render();}
+}
+// data aktif sesuai mode (bulan / tahun) → per orang
+function salActive(){
+  const ms=S.sal.mode==="month"?(S.sal.month?[S.sal.month]:[]):Object.keys(S.sal.months).filter(m=>m.startsWith(S.sal.year)).sort();
+  const people={};
+  ms.forEach(m=>(S.sal.months[m].rows||[]).forEach(r=>{
+    const k=salKey(r.n);const p=people[k]||(people[k]={n:r.n,g:0,b:0,months:0});
+    p.g+=r.g||0;p.b+=r.b||0;if(r.g>0)p.months++;Object.assign(p,{pt:r.pt,dep:r.dep,div:r.div,pos:r.pos,lvl:r.lvl,st:r.st,parts:r.parts,bRaw:r.b});
+  }));
+  // rekap PT & departemen dihitung per baris bulan (supaya pindah PT/dept di tengah tahun tetap benar)
+  const byPt={},byDep={};
+  ms.forEach(m=>(S.sal.months[m].rows||[]).forEach(r=>{
+    if(S.sal.pt!=="all"&&r.pt!==S.sal.pt)return;
+    (byPt[r.pt]=byPt[r.pt]||{g:0,n:new Set()}).g+=r.g;if(r.g>0)byPt[r.pt].n.add(salKey(r.n));
+    (byDep[r.dep]=byDep[r.dep]||{g:0,n:new Set()}).g+=r.g;if(r.g>0)byDep[r.dep].n.add(salKey(r.n));
+  }));
+  return{ms,people:Object.values(people),byPt,byDep};
+}
+function buildSalaryTopbar(tb){
+  tb.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151"}},"Salary"));
+  if(!S.sal.loaded)return;
+  tb.appendChild(el("div",{className:"tb-sep"}));
+  const tog=el("div",{className:"mode-tog"});
+  [["month","Per bulan"],["year","Per tahun"]].forEach(([v,l])=>tog.appendChild(el("button",{className:"mode-btn"+(S.sal.mode===v?" active":""),onclick:()=>{S.sal.mode=v;S.sal.person=null;render();}},l)));
+  tb.appendChild(tog);
+  const ms=Object.keys(S.sal.months).sort().reverse();
+  if(S.sal.mode==="month"){if(ms.length)tb.appendChild(mkSel(S.sal.month,ms.map(m=>[m,salMonthLbl(m)]),e=>{S.sal.month=e.target.value;render();}));}
+  else{const ys=[...new Set(ms.map(m=>m.slice(0,4)))];if(!ys.includes(S.sal.year))ys.unshift(S.sal.year);tb.appendChild(mkSel(S.sal.year,ys.map(y=>[y,y]),e=>{S.sal.year=e.target.value;render();}));}
+  const pts=[...new Set(Object.values(S.sal.months).flatMap(m=>(m.rows||[]).map(r=>r.pt)))].sort();
+  tb.appendChild(mkSel(S.sal.pt,[["all","Semua PT"],...pts.map(p=>[p,p])],e=>{S.sal.pt=e.target.value;render();}));
+  const sp=el("div",{});sp.style.flex="1";tb.appendChild(sp);
+  tb.appendChild(el("button",{className:"ghost-btn on",onclick:salPickFile},"⬆ Upload Excel"));
+  tb.appendChild(el("button",{className:"ghost-btn",onclick:salExport},"⬇ Excel"));
+  tb.appendChild(el("button",{className:"ghost-btn",title:"Kunci menu Salary di perangkat ini",onclick:()=>{setSalPass("");S.sal={...S.sal,months:{},loaded:false,needPass:true,person:null,up:null};render();}},"🔒 Kunci"));
+}
+function salExport(){
+  ensureXlsx(()=>{const a=salActive();const lbl=S.sal.mode==="month"?S.sal.month:S.sal.year;
+    const rows=[["Nama","PT","Departemen","Divisi","Posisi","Level","Gaji","Bonus"]];
+    a.people.filter(p=>S.sal.pt==="all"||p.pt===S.sal.pt).sort((x,y)=>y.g-x.g).forEach(p=>rows.push([p.n,p.pt,p.dep,p.div,p.pos,p.lvl,p.g,p.b||null]));
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),"Salary "+lbl);XLSX.writeFile(wb,"salary-"+lbl+".xlsx");});
+}
+function salBars(title,obj,color){
+  const card=el("div",{className:"card sal-card"});card.appendChild(el("div",{className:"sal-h"},title));
+  const ent=Object.entries(obj).sort((a,b)=>b[1].g-a[1].g);const mx=ent.length?ent[0][1].g:1;
+  ent.forEach(([k,v])=>{const r=el("div",{className:"sal-bar-row"});
+    r.append(el("span",{className:"sal-bl"},(k||"–")+" · "+v.n.size),el("div",{className:"sal-track"},el("div",{className:"sal-fill",style:{width:Math.max(1,v.g/mx*100)+"%",background:color}})),el("span",{className:"sal-num"},fmtJt(v.g)));
+    card.appendChild(r);});
+  if(!ent.length)card.appendChild(el("div",{className:"sal-empty"},"Belum ada data"));
+  return card;
+}
+function buildSalaryContent(ct){
+  if(S.sal.needPass){
+    const box=el("div",{className:"soon-box"});
+    box.append(el("div",{style:{fontSize:"28px"}},"🔒"),el("div",{style:{fontSize:"15px",fontWeight:700,marginTop:"6px"}},"Salary terkunci"),el("div",{style:{fontSize:"12.5px",color:"#6b7280",margin:"4px 0 12px"}},"Masukkan kata sandi Salary"));
+    const inp=el("input",{type:"password",className:"set-inp",placeholder:"Kata sandi"});inp.style.cssText="width:220px;text-align:center;";
+    const go=()=>{if(!inp.value.trim())return;setSalPass(inp.value.trim());S.sal.passErr="";S.sal.needPass=false;S.sal.loading=true;render();loadSalary();};
+    inp.onkeydown=e=>{if(e.key==="Enter")go();};
+    box.append(inp,el("div",{style:{marginTop:"8px"}},el("button",{className:"save-btn",onclick:go},"Buka")));
+    if(S.sal.passErr)box.appendChild(el("div",{style:{color:"#ef4444",fontSize:"12px",marginTop:"8px"}},S.sal.passErr));
+    ct.appendChild(box);setTimeout(()=>inp.focus(),30);return;
+  }
+  if(S.sal.err){ct.appendChild(el("div",{className:"sl-warn"},"⚠️ "+S.sal.err));ct.appendChild(el("button",{className:"sl-btn",onclick:()=>{S.sal.err="";S.sal.loaded=false;render();}},"🔄 Coba lagi"));return;}
+  if(!S.sal.loaded){if(!S.sal.loading){S.sal.loading=true;setTimeout(loadSalary,0);}ct.appendChild(el("div",{style:{padding:"40px",textAlign:"center",color:"#9ca3af",fontSize:"13px"}},"Memuat data..."));return;}
+  // panel upload
+  const u=S.sal.up;
+  if(u){
+    const p=el("div",{className:"sl-form"});
+    const hd=el("div",{className:"sl-fh"});hd.appendChild(el("b",{},"Upload gaji: "+u.file));
+    hd.appendChild(el("span",{className:"tb-lbl"},"Bulan:"));
+    const mi=el("input",{type:"month",className:"inp-date"});mi.value=u.month;mi.onchange=e=>{if(e.target.value){u.month=e.target.value;salReparse();}};hd.appendChild(mi);
+    p.appendChild(hd);
+    if(u.err)p.appendChild(el("div",{className:"sl-warn"},"⚠️ "+u.err));
+    if(u.res){
+      const R=u.res,tot=R.rows.reduce((a,r)=>a+r.g,0),n=R.rows.filter(r=>r.g>0).length;
+      const ptT={};R.rows.forEach(r=>ptT[r.pt]=(ptT[r.pt]||0)+r.g);
+      p.appendChild(el("div",{className:"sal-up-sum"},"Total gaji "+fmtN(tot)+" · "+n+" orang · "+Object.entries(ptT).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+" "+fmtJt(v)).join(" · ")));
+      const W=[];
+      if(S.sal.months[u.month])W.push("Data "+salMonthLbl(u.month)+" sudah ada → akan diganti (bonus yang sudah diisi tetap dipertahankan).");
+      if(R.skipped.length)W.push(R.skipped.length+" baris tanpa NIK tidak dihitung: "+R.skipped.map(s=>s.n+" ("+fmtN(s.g)+")").join(", "));
+      if(R.warn.moved.length)W.push("Ada di 2 PT: "+R.warn.moved.join("; "));
+      if(R.warn.gpoOnly.length)W.push("Hanya ada di GPO (cek!): "+R.warn.gpoOnly.join(", "));
+      if(R.warn.newNames.length)W.push("Nama baru dibanding "+salMonthLbl(R.prevM)+" ("+R.warn.newNames.length+"): "+R.warn.newNames.join(", ")+" — cek kalau ada salah ketik.");
+      W.forEach(w=>p.appendChild(el("div",{className:"sal-up-w"},"• "+w)));
+    }
+    const br=el("div",{style:{display:"flex",gap:"8px",marginTop:"10px"}});
+    br.append(el("button",{className:"save-btn",onclick:salSaveUpload},u.saving?"Menyimpan...":"Simpan ke "+salMonthLbl(u.month)),el("button",{className:"ghost-btn",onclick:()=>{S.sal.up=null;render();}},"Batal"));
+    p.appendChild(br);ct.appendChild(p);
+  }
+  if(!Object.keys(S.sal.months).length){if(!u){const b=el("div",{className:"soon-box"});b.append(el("div",{style:{fontSize:"28px"}},"💵"),el("div",{style:{fontSize:"14px",fontWeight:600,marginTop:"6px"}},"Belum ada data gaji"),el("div",{style:{fontSize:"12.5px",color:"#6b7280",margin:"4px 0 12px"}},"Upload file Excel format gaji bulanan."),el("button",{className:"save-btn",onclick:salPickFile},"⬆ Upload Excel"));ct.appendChild(b);}return;}
+  const A=salActive();
+  if(S.sal.person){buildSalPerson(ct);return;}
+  const ppl=A.people.filter(p=>S.sal.pt==="all"||p.pt===S.sal.pt);
+  const tot=ppl.reduce((a,p)=>a+p.g,0),bon=ppl.reduce((a,p)=>a+p.b,0),cnt=ppl.filter(p=>p.g>0).length;
+  const k=el("div",{className:"sal-kpi"});
+  [["Total gaji"+(S.sal.mode==="year"?" "+S.sal.year+" ("+A.ms.length+" bln)":""),"Rp "+fmtN(tot)],["Karyawan",cnt+" orang"],["Bonus","Rp "+fmtN(bon)]].forEach(([l,v])=>k.appendChild(el("div",{},[el("span",{},l),el("b",{},v)])));
+  ct.appendChild(k);
+  const g2=el("div",{className:"sal-g2"});g2.append(salBars("Per PT",A.byPt,"#6366f1"),salBars("Per Departemen",A.byDep,"#10b981"));ct.appendChild(g2);
+  // tabel
+  const card=el("div",{className:"card sal-card"});
+  const h=el("div",{className:"sal-h",style:{display:"flex",gap:"8px",alignItems:"center"}});h.appendChild(el("span",{},"Daftar karyawan ("+ppl.length+")"));
+  const deps=[...new Set(ppl.map(p=>p.dep))].sort();
+  const fx=el("div",{style:{marginLeft:"auto",display:"flex",gap:"6px"}});
+  const si=el("input",{type:"text",id:"sal-q",placeholder:"🔍 Cari nama / posisi"});si.value=S.sal.q;si.style.cssText="border:1px solid #e5e7eb;border-radius:6px;padding:4px 9px;font-size:12px;width:170px;";
+  si.oninput=e=>{S.sal.q=e.target.value;S.sal._cur=e.target.selectionStart;render();const n=document.getElementById("sal-q");if(n){n.focus();n.setSelectionRange(S.sal._cur,S.sal._cur);}};
+  fx.append(si,mkSel(S.sal.dep,[["all","Semua departemen"],...deps.map(d=>[d,d])],e=>{S.sal.dep=e.target.value;render();}));
+  h.appendChild(fx);card.appendChild(h);
+  const q=S.sal.q.trim().toLowerCase();
+  let list=ppl.filter(p=>(S.sal.dep==="all"||p.dep===S.sal.dep)&&(!q||(p.n+" "+p.pos).toLowerCase().includes(q)));
+  const sk=S.sal.sort;list.sort((a,b)=>sk==="n"?a.n.localeCompare(b.n):sk==="b"?(b.b-a.b):(b.g-a.g));
+  const tbl=el("table",{className:"sal-tbl"});
+  const hr=el("tr",{});[["n","Nama"],[null,"PT"],[null,"Departemen"],[null,"Divisi"],[null,"Posisi"],[null,"Level"],["g","Gaji"],["b","Bonus"]].forEach(([s,l],i)=>{
+    const th=el("th",{className:i>=6?"r":""},l+(s&&S.sal.sort===s?" ▾":""));if(s){th.style.cursor="pointer";th.onclick=()=>{S.sal.sort=s;render();};}hr.appendChild(th);});
+  tbl.appendChild(hr);
+  list.forEach(p=>{const tr=el("tr",{});
+    const nm=el("td",{className:"sal-name",onclick:()=>{S.sal.person=salKey(p.n);render();}},p.n);
+    if(p.parts&&S.sal.mode==="month")nm.appendChild(el("span",{className:"sal-tag",title:p.parts.map(x=>x.pt+": "+fmtN(x.g)).join("\n")},p.parts.length+" baris"));
+    if(p.st&&p.st!=="ACTIVE")nm.appendChild(el("span",{className:"sal-tag sal-tag-g"},p.st.toLowerCase()));
+    tr.append(nm,el("td",{},p.pt),el("td",{},p.dep),el("td",{},p.div),el("td",{},p.pos),el("td",{},p.lvl));
+    tr.appendChild(el("td",{className:"r"},fmtN(p.g)));
+    const bt=el("td",{className:"r"});
+    if(S.sal.mode==="month"){
+      const be=S.sal.bonusEdit;
+      if(be===salKey(p.n)){const bi=el("input",{type:"text",className:"sal-bi"});bi.value=p.bRaw==null?"":String(p.bRaw);
+        const ok=()=>{const v=parseN(bi.value);S.sal.bonusEdit=null;if(v.err){showToast("Angka tidak valid");render();return;}if(v.v!==p.bRaw)salSaveBonus(S.sal.month,p.n,v.v);else render();};
+        bi.onkeydown=e=>{if(e.key==="Enter")ok();if(e.key==="Escape"){S.sal.bonusEdit=null;render();}};bi.onblur=()=>{if(S.sal.bonusEdit)ok();};
+        bt.appendChild(bi);setTimeout(()=>{bi.focus();bi.select();},20);}
+      else{bt.textContent=p.bRaw==null?"✎":fmtN(p.bRaw);bt.className="r sal-bcell";bt.title="Klik untuk isi bonus";bt.onclick=()=>{S.sal.bonusEdit=salKey(p.n);render();};}
+    } else bt.textContent=p.b?fmtN(p.b):"–";
+    tr.appendChild(bt);tbl.appendChild(tr);});
+  card.appendChild(el("div",{style:{overflowX:"auto"}},tbl));ct.appendChild(card);
+}
+function buildSalPerson(ct){
+  const key=S.sal.person,y=S.sal.mode==="year"?S.sal.year:(S.sal.month||"").slice(0,4);
+  const recs=Object.keys(S.sal.months).filter(m=>m.startsWith(y)).sort().map(m=>({m,r:(S.sal.months[m].rows||[]).find(r=>salKey(r.n)===key)})).filter(x=>x.r);
+  const name=recs.length?recs[recs.length-1].r.n:key;
+  ct.appendChild(el("button",{className:"ghost-btn",style:{marginBottom:"10px"},onclick:()=>{S.sal.person=null;render();}},"← Kembali ke daftar"));
+  const card=el("div",{className:"card sal-card"});
+  const tot=recs.reduce((a,x)=>a+x.r.g,0),bon=recs.reduce((a,x)=>a+(x.r.b||0),0);
+  card.appendChild(el("div",{className:"sal-h"},name+" — "+y));
+  const k=el("div",{className:"sal-kpi"});[["Total gaji "+y,"Rp "+fmtN(tot)],["Rata-rata / bulan","Rp "+fmtN(recs.length?Math.round(tot/recs.length):0)],["Total bonus","Rp "+fmtN(bon)]].forEach(([l,v])=>k.appendChild(el("div",{},[el("span",{},l),el("b",{},v)])));
+  card.appendChild(k);
+  const mx=Math.max(1,...recs.map(x=>x.r.g));
+  const ch=el("div",{className:"sal-chart"});
+  for(let i=1;i<=12;i++){const m=y+"-"+String(i).padStart(2,"0");const x=recs.find(z=>z.m===m);
+    const col=el("div",{className:"sal-col"});col.append(el("div",{className:"sal-cv"},x?fmtJt(x.r.g).replace(" jt",""):""),el("div",{className:"sal-cb",style:{height:(x?Math.max(2,x.r.g/mx*90):0)+"px"}}),el("div",{className:"sal-cl"},MONTHS_ID[i-1].slice(0,3)));ch.appendChild(col);}
+  card.appendChild(ch);
+  const tbl=el("table",{className:"sal-tbl"});const hr=el("tr",{});["Bulan","PT","Departemen","Divisi","Posisi","Level","Gaji","Bonus"].forEach((l,i)=>hr.appendChild(el("th",{className:i>=6?"r":""},l)));tbl.appendChild(hr);
+  recs.forEach(x=>{const tr=el("tr",{});tr.append(el("td",{},salMonthLbl(x.m)),el("td",{},x.r.pt+(x.r.parts?" ("+x.r.parts.map(p=>p.pt).join("+")+")":"")),el("td",{},x.r.dep),el("td",{},x.r.div),el("td",{},x.r.pos),el("td",{},x.r.lvl),el("td",{className:"r"},fmtN(x.r.g)),el("td",{className:"r"},x.r.b==null?"–":fmtN(x.r.b)));tbl.appendChild(tr);});
+  card.appendChild(tbl);ct.appendChild(card);
+}
 // ── Render ─────────────────────────────────────────────────────────
 function render(){
   const app=document.getElementById("app");app.innerHTML="";
@@ -1650,7 +1933,7 @@ function render(){
   } else if(S.view==="finance"){
     topbar.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151"}},"Finance — Laporan Keuangan Bulanan"));
   } else if(S.view==="salary"){
-    topbar.appendChild(el("span",{style:{fontSize:"13px",fontWeight:600,color:"#374151"}},"Salary — Gaji Bulanan"));
+    buildSalaryTopbar(topbar);
   }
 
   main.appendChild(topbar);
@@ -1680,8 +1963,9 @@ function render(){
   }
 
   // ── PLACEHOLDER Finance / Salary
-  if(S.view==="finance"||S.view==="salary"){
-    const fin=S.view==="finance";
+  if(S.view==="salary"){buildSalaryContent(content);}
+  if(S.view==="finance"){
+    const fin=true;
     const box=el("div",{className:"soon-box"});
     box.append(el("div",{style:{fontSize:"32px"}},fin?"💰":"💵"),
       el("div",{style:{fontSize:"15px",fontWeight:700,color:"#111827",marginTop:"8px"}},fin?"Finance":"Salary"),
