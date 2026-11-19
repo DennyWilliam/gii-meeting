@@ -1714,7 +1714,9 @@ function buildSalaryContent(ct){
   let list=ppl.filter(p=>(S.sal.dep==="all"||p.dep===S.sal.dep)&&(!q||(p.n+" "+p.pos).toLowerCase().includes(q)));
   const sk=S.sal.sort;list.sort((a,b)=>sk==="n"?a.n.localeCompare(b.n):sk==="b"?(b.b-a.b):(b.g-a.g));
   const tbl=el("table",{className:"sal-tbl"});
-  const hr=el("tr",{});[["n","Nama"],[null,"PT"],[null,"Departemen"],[null,"Divisi"],[null,"Posisi"],[null,"Level"],["g","Gaji"],["b","Bonus"]].forEach(([s,l],i)=>{
+  const YR=S.sal.mode==="year";
+  const cols=[["n","Nama"],[null,"PT"],[null,"Departemen"],[null,"Divisi"],[null,"Posisi"],[null,"Level"],...(YR?[[null,"Bln"]]:[]),["g",YR?"Total gaji "+S.sal.year:"Gaji"],...(YR?[[null,"Rata-rata/bln"]]:[]),["b",YR?"Total bonus":"Bonus"]];
+  const hr=el("tr",{});cols.forEach(([s,l],i)=>{
     const th=el("th",{className:i>=6?"r":""},l+(s&&S.sal.sort===s?" ▾":""));if(s){th.style.cursor="pointer";th.onclick=()=>{S.sal.sort=s;render();};}hr.appendChild(th);});
   tbl.appendChild(hr);
   list.forEach(p=>{const tr=el("tr",{});
@@ -1722,7 +1724,9 @@ function buildSalaryContent(ct){
     if(p.parts&&S.sal.mode==="month")nm.appendChild(el("span",{className:"sal-tag",title:p.parts.map(x=>x.pt+": "+fmtN(x.g)).join("\n")},p.parts.length+" baris"));
     if(p.st&&p.st!=="ACTIVE")nm.appendChild(el("span",{className:"sal-tag sal-tag-g"},p.st.toLowerCase()));
     tr.append(nm,el("td",{},p.pt),el("td",{},p.dep),el("td",{},p.div),el("td",{},p.pos),el("td",{},p.lvl));
+    if(YR)tr.appendChild(el("td",{className:"r"},String(p.months)));
     tr.appendChild(el("td",{className:"r"},fmtN(p.g)));
+    if(YR)tr.appendChild(el("td",{className:"r"},p.months?fmtN(Math.round(p.g/p.months)):"–"));
     const bt=el("td",{className:"r"});
     if(S.sal.mode==="month"){
       const be=S.sal.bonusEdit;
