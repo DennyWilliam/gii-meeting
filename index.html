@@ -57,8 +57,9 @@ textarea{resize:none;}
 .sal-tbl tr:hover td{background:#fafbff;}
 .sal-kpi small{display:block;font-size:11px;color:#9ca3af;margin-top:2px;}
 .sal-hint2{font-size:11px;font-weight:400;color:#9ca3af;}
-.sal-gt{font-size:11.5px;}
-.sal-gt td,.sal-gt th{padding:5px 5px;}
+.sal-gt{font-size:11px;}
+.sal-gt td,.sal-gt th{padding:5px 3px;}
+.sal-g2>.sal-card{padding:10px 10px;}
 .sal-gt td:nth-child(-n+2){white-space:normal;}
 .sal-sel{cursor:pointer;}
 .sal-sel input{pointer-events:none;}
@@ -77,10 +78,11 @@ textarea{resize:none;}
 .dep-dd-top button{font-size:11px;border:none;background:none;color:#6366f1;cursor:pointer;padding:2px 4px;}
 .dep-dd-item{display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;}
 .dep-dd-item:hover{background:#f5f7ff;}
-.sal-g2-y{grid-template-columns:minmax(0,1fr);}
-.sal-tbl-y{font-size:11.5px;}
-.sal-tbl-y td,.sal-tbl-y th{padding:5px 4px;}
-.sal-tbl-y td:nth-child(4),.sal-tbl-y td:nth-child(5){white-space:normal;}
+.sal-g2{grid-template-columns:minmax(0,1fr) minmax(0,1.12fr)!important;}
+.sal-tbl-y{font-size:11px;}
+.sal-tbl-y td,.sal-tbl-y th{padding:5px 3px;}
+.sal-tbl-y td:nth-child(-n+5){white-space:normal;}
+.sal-tbl-y th{white-space:normal!important;}
 .sal-tcol{font-weight:600;color:#111827!important;}
 .sal-th{cursor:pointer;user-select:none;}
 .sal-th:hover{color:#374151!important;}
@@ -1687,17 +1689,15 @@ function salGroupTable(title,obj,nMonths){
   const T=ent.reduce((a,[,v])=>({g:a.g+v.g,b:a.b+v.b,hc:a.hc+v.hc}),{g:0,b:0,hc:0});
   const TT=T.g+T.b;
   const tbl=el("table",{className:"sal-tbl sal-gt"});
-  const hr=el("tr",{});[title.replace("Per ",""),YR?"Orang/bln":"Orang","Gaji",YR?"Rata-rata/bln":null,"Bonus","Total","%"].forEach((l,i)=>{if(l==null)return;hr.appendChild(el("th",{className:(i>=1?"r":"")+(l==="Total"?" sal-tcol":"")},l));});
+  const hr=el("tr",{});[title.replace("Per ",""),YR?"Orang/bln":"Orang","Gaji","Bonus","Total","%"].forEach((l,i)=>{if(l==null)return;hr.appendChild(el("th",{className:(i>=1?"r":"")+(l==="Total"?" sal-tcol":"")},l));});
   tbl.appendChild(hr);
   const hc=v=>YR?(v.hc/nMonths).toLocaleString("id-ID",{maximumFractionDigits:1}):String(v.hc);
   ent.forEach(([k,v])=>{const tr=el("tr",{});
-    tr.append(el("td",{},k||"–"),el("td",{className:"r"},hc(v)),el("td",{className:"r"},fmtN(v.g)));
-    if(YR)tr.appendChild(el("td",{className:"r"},fmtN(Math.round(v.g/nMonths))));
+    tr.append(el("td",{},k||"–"),el("td",{className:"r"},hc(v)),el("td",{className:"r",title:YR?"Rata-rata/bln: "+fmtN(Math.round(v.g/nMonths)):""},fmtN(v.g)));
     tr.append(el("td",{className:"r"},v.b?fmtN(v.b):"–"),el("td",{className:"r sal-tcol"},fmtN(v.g+v.b)),el("td",{className:"r"},TT?((v.g+v.b)/TT*100).toFixed(1).replace(".",",")+"%":"–"));
     tbl.appendChild(tr);});
   const ft=el("tr",{className:"sal-total"});
-  ft.append(el("td",{},"Total"),el("td",{className:"r"},hc(T)),el("td",{className:"r"},fmtN(T.g)));
-  if(YR)ft.appendChild(el("td",{className:"r"},fmtN(Math.round(T.g/nMonths))));
+  ft.append(el("td",{},"Total"),el("td",{className:"r"},hc(T)),el("td",{className:"r",title:YR?"Rata-rata/bln: "+fmtN(Math.round(T.g/nMonths)):""},fmtN(T.g)));
   ft.append(el("td",{className:"r"},T.b?fmtN(T.b):"–"),el("td",{className:"r sal-tcol"},fmtN(TT)),el("td",{className:"r"},TT?"100%":"–"));
   tbl.appendChild(ft);
   if(!ent.length)card.appendChild(el("div",{className:"sal-empty"},"Belum ada data"));else card.appendChild(el("div",{style:{overflowX:"auto"}},tbl));
@@ -1774,7 +1774,7 @@ function buildSalaryContent(ct){
    ["Bonus"+fl,"Rp "+fmtN(bon),null],
    ["Total gaji + bonus"+fl,"Rp "+fmtN(tot+bon),null]].forEach(([l,v,sub])=>k.appendChild(el("div",{},[el("span",{},l),el("b",{},v),sub?el("small",{},sub):null])));
   ct.appendChild(k);
-  const g2=el("div",{className:"sal-g2"+(YRk?" sal-g2-y":"")});g2.append(salGroupTable("Per PT",A.byPt,nM),salGroupTable("Per Departemen",A.byDep,nM));ct.appendChild(g2);
+  const g2=el("div",{className:"sal-g2"});g2.append(salGroupTable("Per PT",A.byPt,nM),salGroupTable("Per Departemen",A.byDep,nM));ct.appendChild(g2);
   // tabel
   const card=el("div",{className:"card sal-card"});
   const h=el("div",{className:"sal-h",style:{display:"flex",gap:"8px",alignItems:"center"}});h.appendChild(el("span",{},"Daftar karyawan"));
