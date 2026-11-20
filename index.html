@@ -37,7 +37,7 @@ textarea{resize:none;}
 .mem-chip.active{background:#1e293b;border-color:#1e293b;color:#fff;}
 .mem-chip-add{border-style:dashed;color:#6b7280;}
 .mem-add-inp{border:1px solid #6366f1;border-radius:20px;padding:5px 12px;font-size:12px;width:160px;}
-.sal-kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.sal-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
 .sal-kpi>div{background:#fff;border:1px solid #f0f0f0;border-radius:10px;padding:10px 14px;}
 .sal-kpi span{display:block;font-size:11px;color:#9ca3af;}
 .sal-kpi b{display:block;font-size:18px;color:#111827;margin-top:2px;}
@@ -77,6 +77,11 @@ textarea{resize:none;}
 .dep-dd-top button{font-size:11px;border:none;background:none;color:#6366f1;cursor:pointer;padding:2px 4px;}
 .dep-dd-item{display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:12px;border-radius:5px;cursor:pointer;}
 .dep-dd-item:hover{background:#f5f7ff;}
+.sal-g2-y{grid-template-columns:minmax(0,1fr);}
+.sal-tbl-y{font-size:11.5px;}
+.sal-tbl-y td,.sal-tbl-y th{padding:5px 4px;}
+.sal-tbl-y td:nth-child(4),.sal-tbl-y td:nth-child(5){white-space:normal;}
+.sal-tcol{font-weight:600;color:#111827!important;}
 .sal-th{cursor:pointer;user-select:none;}
 .sal-th:hover{color:#374151!important;}
 .sal-th.on{color:#111827!important;}
@@ -1646,8 +1651,8 @@ function salActive(){
   const byPt={},byDep={};
   ms.forEach(m=>(S.sal.months[m].rows||[]).forEach(r=>{
     if(S.sal.pt!=="all"&&r.pt!==S.sal.pt)return;
-    add(byDep,r.dep,r);
-    if(salDepOk(r.dep))add(byPt,r.pt,r);
+    if(!salDepOk(r.dep))return;
+    add(byDep,r.dep,r);add(byPt,r.pt,r);
   }));
   return{ms,people:Object.values(people),byPt,byDep};
 }
@@ -1670,34 +1675,30 @@ function buildSalaryTopbar(tb){
 }
 function salExport(){
   ensureXlsx(()=>{const a=salActive();const lbl=S.sal.mode==="month"?S.sal.month:S.sal.year;
-    const rows=[["Nama","PT","Departemen","Divisi","Posisi","Level","Gaji","Bonus"]];
-    a.people.filter(p=>S.sal.pt==="all"||p.pt===S.sal.pt).sort((x,y)=>y.g-x.g).forEach(p=>rows.push([p.n,p.pt,p.dep,p.div,p.pos,p.lvl,p.g,p.b||null]));
+    const rows=[["Nama","PT","Departemen","Divisi","Posisi","Level","Gaji","Bonus","Total","Keterangan bonus"]];
+    a.people.filter(p=>(S.sal.pt==="all"||p.pt===S.sal.pt)&&salDepOk(p.dep)&&(p.g>0||p.b>0)).sort((x,y)=>y.g-x.g).forEach(p=>rows.push([p.n,p.pt,p.dep,p.div,p.pos,p.lvl,p.g,p.b||null,p.g+p.b,p.notes.join(" | ")||null]));
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),"Salary "+lbl);XLSX.writeFile(wb,"salary-"+lbl+".xlsx");});
 }
-function salGroupTable(title,obj,nMonths,selectable){
+function salGroupTable(title,obj,nMonths){
   const YR=S.sal.mode==="year";
   const card=el("div",{className:"card sal-card"});
-  card.appendChild(el("div",{className:"sal-h"},[title+(selectable?" ":""),selectable?el("span",{className:"sal-hint2"},"klik baris untuk pilih"):null]));
-  const ent=Object.entries(obj).sort((a,b)=>b[1].g-a[1].g);
-  const selEnt=selectable?ent.filter(([k])=>salDepOk(k)):ent;
-  const T=selEnt.reduce((a,[,v])=>({g:a.g+v.g,b:a.b+v.b,hc:a.hc+v.hc}),{g:0,b:0,hc:0});
+  card.appendChild(el("div",{className:"sal-h"},title));
+  const ent=Object.entries(obj).sort((a,b)=>(b[1].g+b[1].b)-(a[1].g+a[1].b));
+  const T=ent.reduce((a,[,v])=>({g:a.g+v.g,b:a.b+v.b,hc:a.hc+v.hc}),{g:0,b:0,hc:0});
+  const TT=T.g+T.b;
   const tbl=el("table",{className:"sal-tbl sal-gt"});
-  const hr=el("tr",{});[selectable?"":null,title.replace("Per ",""),YR?"Orang/bln":"Orang","Gaji",YR?"Rata-rata/bln":null,"Bonus","%"].forEach((l,i)=>{if(l==null)return;hr.appendChild(el("th",{className:i>=2?"r":""},l));});
+  const hr=el("tr",{});[title.replace("Per ",""),YR?"Orang/bln":"Orang","Gaji",YR?"Rata-rata/bln":null,"Bonus","Total","%"].forEach((l,i)=>{if(l==null)return;hr.appendChild(el("th",{className:(i>=1?"r":"")+(l==="Total"?" sal-tcol":"")},l));});
   tbl.appendChild(hr);
-  ent.forEach(([k,v])=>{
-    const on=!selectable||salDepOk(k);
-    const tr=el("tr",{className:(selectable?"sal-sel":"")+(on?"":" sal-off")});
-    if(selectable){const cb=el("input",{type:"checkbox"});cb.checked=S.sal.deps.includes(k);tr.appendChild(el("td",{style:{width:"18px"}},cb));
-      tr.onclick=()=>{const d=S.sal.deps;S.sal.deps=d.includes(k)?d.filter(x=>x!==k):[...d,k];render();};}
-    tr.append(el("td",{},k||"–"),el("td",{className:"r"},YR?(v.hc/nMonths).toLocaleString("id-ID",{maximumFractionDigits:1}):String(v.hc)),el("td",{className:"r"},fmtN(v.g)));
+  const hc=v=>YR?(v.hc/nMonths).toLocaleString("id-ID",{maximumFractionDigits:1}):String(v.hc);
+  ent.forEach(([k,v])=>{const tr=el("tr",{});
+    tr.append(el("td",{},k||"–"),el("td",{className:"r"},hc(v)),el("td",{className:"r"},fmtN(v.g)));
     if(YR)tr.appendChild(el("td",{className:"r"},fmtN(Math.round(v.g/nMonths))));
-    tr.append(el("td",{className:"r"},v.b?fmtN(v.b):"–"),el("td",{className:"r"},on&&T.g?(v.g/T.g*100).toFixed(1).replace(".",",")+"%":"–"));
+    tr.append(el("td",{className:"r"},v.b?fmtN(v.b):"–"),el("td",{className:"r sal-tcol"},fmtN(v.g+v.b)),el("td",{className:"r"},TT?((v.g+v.b)/TT*100).toFixed(1).replace(".",",")+"%":"–"));
     tbl.appendChild(tr);});
   const ft=el("tr",{className:"sal-total"});
-  if(selectable)ft.appendChild(el("td",{},""));
-  ft.append(el("td",{},selectable&&S.sal.deps.length?"Total dipilih ("+S.sal.deps.length+")":"Total"),el("td",{className:"r"},YR?(T.hc/nMonths).toLocaleString("id-ID",{maximumFractionDigits:1}):String(T.hc)),el("td",{className:"r"},fmtN(T.g)));
+  ft.append(el("td",{},"Total"),el("td",{className:"r"},hc(T)),el("td",{className:"r"},fmtN(T.g)));
   if(YR)ft.appendChild(el("td",{className:"r"},fmtN(Math.round(T.g/nMonths))));
-  ft.append(el("td",{className:"r"},T.b?fmtN(T.b):"–"),el("td",{className:"r"},T.g?"100%":"–"));
+  ft.append(el("td",{className:"r"},T.b?fmtN(T.b):"–"),el("td",{className:"r sal-tcol"},fmtN(TT)),el("td",{className:"r"},TT?"100%":"–"));
   tbl.appendChild(ft);
   if(!ent.length)card.appendChild(el("div",{className:"sal-empty"},"Belum ada data"));else card.appendChild(el("div",{style:{overflowX:"auto"}},tbl));
   return card;
@@ -1761,7 +1762,7 @@ function buildSalaryContent(ct){
   if(S.sal.person){buildSalPerson(ct);return;}
   const allDeps=[...new Set(A.people.filter(p=>S.sal.pt==="all"||p.pt===S.sal.pt).map(p=>p.dep))].sort();
   S.sal.deps=S.sal.deps.filter(d=>allDeps.includes(d));
-  const ppl=A.people.filter(p=>(S.sal.pt==="all"||p.pt===S.sal.pt)&&salDepOk(p.dep));
+  const ppl=A.people.filter(p=>(S.sal.pt==="all"||p.pt===S.sal.pt)&&salDepOk(p.dep)&&(p.g>0||p.b>0));
   const nM=Math.max(1,A.ms.length);
   const tot=ppl.reduce((a,p)=>a+p.g,0),bon=ppl.reduce((a,p)=>a+p.b,0),cnt=ppl.filter(p=>p.g>0).length;
   const hcSum=Object.values(A.byPt).reduce((a,v)=>a+v.hc,0);
@@ -1770,12 +1771,13 @@ function buildSalaryContent(ct){
   const fl=S.sal.deps.length?" · "+(S.sal.deps.length===1?S.sal.deps[0]:S.sal.deps.length+" departemen"):"";
   [["Total gaji"+(YRk?" "+S.sal.year+" ("+A.ms.length+" bln)":"")+fl,"Rp "+fmtN(tot),null],
    [YRk?"Karyawan rata-rata/bln"+fl:"Karyawan"+fl,YRk?(hcSum/nM).toLocaleString("id-ID",{maximumFractionDigits:0})+" orang":cnt+" orang",YRk?cnt+" orang pernah digaji tahun ini":null],
-   ["Bonus"+fl,"Rp "+fmtN(bon),null]].forEach(([l,v,sub])=>k.appendChild(el("div",{},[el("span",{},l),el("b",{},v),sub?el("small",{},sub):null])));
+   ["Bonus"+fl,"Rp "+fmtN(bon),null],
+   ["Total gaji + bonus"+fl,"Rp "+fmtN(tot+bon),null]].forEach(([l,v,sub])=>k.appendChild(el("div",{},[el("span",{},l),el("b",{},v),sub?el("small",{},sub):null])));
   ct.appendChild(k);
-  const g2=el("div",{className:"sal-g2"});g2.append(salGroupTable("Per PT",A.byPt,nM,false),salGroupTable("Per Departemen",A.byDep,nM,true));ct.appendChild(g2);
+  const g2=el("div",{className:"sal-g2"+(YRk?" sal-g2-y":"")});g2.append(salGroupTable("Per PT",A.byPt,nM),salGroupTable("Per Departemen",A.byDep,nM));ct.appendChild(g2);
   // tabel
   const card=el("div",{className:"card sal-card"});
-  const h=el("div",{className:"sal-h",style:{display:"flex",gap:"8px",alignItems:"center"}});h.appendChild(el("span",{},"Daftar karyawan ("+ppl.length+")"));
+  const h=el("div",{className:"sal-h",style:{display:"flex",gap:"8px",alignItems:"center"}});h.appendChild(el("span",{},"Daftar karyawan"));
   const fx=el("div",{style:{marginLeft:"auto",display:"flex",gap:"6px"}});
   const si=el("input",{type:"text",id:"sal-q",placeholder:"🔍 Cari nama / posisi"});si.value=S.sal.q;si.style.cssText="border:1px solid #e5e7eb;border-radius:6px;padding:4px 9px;font-size:12px;width:170px;";
   si.oninput=e=>{S.sal.q=e.target.value;S.sal._cur=e.target.selectionStart;render();const n=document.getElementById("sal-q");if(n){n.focus();n.setSelectionRange(S.sal._cur,S.sal._cur);}};
@@ -1784,17 +1786,18 @@ function buildSalaryContent(ct){
   const q=S.sal.q.trim().toLowerCase();
   let list=ppl.filter(p=>(!q||(p.n+" "+p.pos).toLowerCase().includes(q)));
   const YR=S.sal.mode==="year";
-  const NUM=["months","g","avg","b"];
+  const NUM=["months","g","avg","b","t"];
   const lvlKey=v=>String(v||"").split(".").map(x=>x.padStart(3,"0")).join(".");
-  const val=(p,k)=>k==="avg"?(p.months?p.g/p.months:0):k==="b"?(YR?p.b:(p.bRaw||0)):k==="lvl"?lvlKey(p.lvl):(p[k]??"");
+  const bOf=p=>YR?p.b:(p.bRaw||0);
+  const val=(p,k)=>k==="t"?p.g+bOf(p):k==="avg"?(p.months?p.g/p.months:0):k==="b"?(YR?p.b:(p.bRaw||0)):k==="lvl"?lvlKey(p.lvl):(p[k]??"");
   const sk=S.sal.sort,dir=S.sal.dir||(NUM.includes(sk)?"desc":"asc");
   list.sort((a,b)=>{const x=val(a,sk),y=val(b,sk);const c=NUM.includes(sk)?x-y:String(x).localeCompare(String(y),"id");return(dir==="asc"?c:-c)||a.n.localeCompare(b.n);});
   h.firstChild.textContent="Daftar karyawan ("+list.length+")";
-  const tbl=el("table",{className:"sal-tbl"});
-  const cols=[["n","Nama"],["pt","PT"],["dep","Departemen"],["div","Divisi"],["pos","Posisi"],["lvl","Level"],...(YR?[["months","Bln"]]:[]),["g",YR?"Total gaji "+S.sal.year:"Gaji"],...(YR?[["avg","Rata-rata/bln"]]:[]),["b",YR?"Total bonus":"Bonus"]];
+  const tbl=el("table",{className:"sal-tbl"+(YR?" sal-tbl-y":"")});
+  const cols=[["n","Nama"],["pt","PT"],["dep","Departemen"],["div","Divisi"],["pos","Posisi"],["lvl","Level"],...(YR?[["months","Bln"]]:[]),["g",YR?"Total gaji "+S.sal.year:"Gaji"],...(YR?[["avg","Rata-rata/bln"]]:[]),["b",YR?"Total bonus":"Bonus"],["t",YR?"Total "+S.sal.year:"Total"]];
   const hr=el("tr",{});cols.forEach(([s,l],i)=>{
     const on=S.sal.sort===s;
-    const th=el("th",{className:(i>=6?"r ":"")+"sal-th"+(on?" on":""),title:"Urutkan"},l+(on?(dir==="asc"?" ▲":" ▼"):""));
+    const th=el("th",{className:(i>=6?"r ":"")+"sal-th"+(on?" on":"")+(s==="t"?" sal-tcol":""),title:"Urutkan"},l+(on?(dir==="asc"?" ▲":" ▼"):""));
     th.onclick=()=>{if(S.sal.sort===s)S.sal.dir=dir==="asc"?"desc":"asc";else{S.sal.sort=s;S.sal.dir=NUM.includes(s)?"desc":"asc";}render();};
     hr.appendChild(th);});
   tbl.appendChild(hr);
@@ -1819,7 +1822,7 @@ function buildSalaryContent(ct){
         bt.appendChild(box);setTimeout(()=>{bi.focus();bi.select();},20);}
       else{bt.textContent=p.bRaw==null?"✎":fmtN(p.bRaw);bt.className="r sal-bcell"+(p.bnRaw?" sal-note":"");bt.title=p.bnRaw?p.bnRaw+"\n(klik untuk ubah)":"Klik untuk isi bonus";bt.onclick=()=>{S.sal.bonusEdit=salKey(p.n);render();};}
     } else {bt.textContent=p.b?fmtN(p.b):"–";if(p.notes.length){bt.className="r sal-note";bt.title=p.notes.join("\n");}}
-    tr.appendChild(bt);tbl.appendChild(tr);});
+    tr.appendChild(bt);tr.appendChild(el("td",{className:"r sal-tcol"},fmtN(p.g+bOf(p))));tbl.appendChild(tr);});
   // baris total sesuai filter
   const tG=list.reduce((a,p)=>a+p.g,0),tB=list.reduce((a,p)=>a+(YR?p.b:(p.bRaw||0)),0),tN=list.filter(p=>p.g>0).length;
   const ft=el("tr",{className:"sal-total"});
@@ -1828,6 +1831,7 @@ function buildSalaryContent(ct){
   ft.appendChild(el("td",{className:"r"},fmtN(tG)));
   if(YR)ft.appendChild(el("td",{className:"r",title:"Total gaji ÷ jumlah bulan"},A.ms.length?fmtN(Math.round(tG/A.ms.length)):"–"));
   ft.appendChild(el("td",{className:"r"},tB?fmtN(tB):"–"));
+  ft.appendChild(el("td",{className:"r sal-tcol"},fmtN(tG+tB)));
   tbl.appendChild(ft);
   card.appendChild(el("div",{style:{overflowX:"auto"}},tbl));ct.appendChild(card);
 }
@@ -1839,15 +1843,16 @@ function buildSalPerson(ct){
   const card=el("div",{className:"card sal-card"});
   const tot=recs.reduce((a,x)=>a+x.r.g,0),bon=recs.reduce((a,x)=>a+(x.r.b||0),0);
   card.appendChild(el("div",{className:"sal-h"},name+" — "+y));
-  const k=el("div",{className:"sal-kpi"});[["Total gaji "+y,"Rp "+fmtN(tot)],["Rata-rata / bulan","Rp "+fmtN(recs.length?Math.round(tot/recs.length):0)],["Total bonus","Rp "+fmtN(bon)]].forEach(([l,v])=>k.appendChild(el("div",{},[el("span",{},l),el("b",{},v)])));
+  const k=el("div",{className:"sal-kpi"});[["Total gaji "+y,"Rp "+fmtN(tot)],["Rata-rata / bulan","Rp "+fmtN(recs.length?Math.round(tot/recs.length):0)],["Total bonus","Rp "+fmtN(bon)],["Total gaji + bonus","Rp "+fmtN(tot+bon)]].forEach(([l,v])=>k.appendChild(el("div",{},[el("span",{},l),el("b",{},v)])));
   card.appendChild(k);
   const mx=Math.max(1,...recs.map(x=>x.r.g));
   const ch=el("div",{className:"sal-chart"});
   for(let i=1;i<=12;i++){const m=y+"-"+String(i).padStart(2,"0");const x=recs.find(z=>z.m===m);
     const col=el("div",{className:"sal-col"});col.append(el("div",{className:"sal-cv"},x?fmtJt(x.r.g).replace(" jt",""):""),el("div",{className:"sal-cb",style:{height:(x?Math.max(2,x.r.g/mx*90):0)+"px"}}),el("div",{className:"sal-cl"},MONTHS_ID[i-1].slice(0,3)));ch.appendChild(col);}
   card.appendChild(ch);
-  const tbl=el("table",{className:"sal-tbl"});const hr=el("tr",{});["Bulan","PT","Departemen","Divisi","Posisi","Level","Gaji","Bonus"].forEach((l,i)=>hr.appendChild(el("th",{className:i>=6?"r":""},l)));tbl.appendChild(hr);
-  recs.forEach(x=>{const tr=el("tr",{});tr.append(el("td",{},salMonthLbl(x.m)),el("td",{},x.r.pt+(x.r.parts?" ("+x.r.parts.map(p=>p.pt).join("+")+")":"")),el("td",{},x.r.dep),el("td",{},x.r.div),el("td",{},x.r.pos),el("td",{},x.r.lvl),el("td",{className:"r"},fmtN(x.r.g)),el("td",{className:"r"+(x.r.bn?" sal-note":""),title:x.r.bn||""},x.r.b==null?"–":fmtN(x.r.b)));tbl.appendChild(tr);});
+  const tbl=el("table",{className:"sal-tbl"});const hr=el("tr",{});["Bulan","PT","Departemen","Divisi","Posisi","Level","Gaji","Bonus","Total"].forEach((l,i)=>hr.appendChild(el("th",{className:(i>=6?"r":"")+(l==="Total"?" sal-tcol":"")},l)));tbl.appendChild(hr);
+  recs.forEach(x=>{const tr=el("tr",{});tr.append(el("td",{},salMonthLbl(x.m)),el("td",{},x.r.pt+(x.r.parts?" ("+x.r.parts.map(p=>p.pt).join("+")+")":"")),el("td",{},x.r.dep),el("td",{},x.r.div),el("td",{},x.r.pos),el("td",{},x.r.lvl),el("td",{className:"r"},fmtN(x.r.g)),el("td",{className:"r"+(x.r.bn?" sal-note":""),title:x.r.bn||""},x.r.b==null?"–":fmtN(x.r.b)),el("td",{className:"r sal-tcol"},fmtN((x.r.g||0)+(x.r.b||0))));tbl.appendChild(tr);});
+  if(recs.length){const ft=el("tr",{className:"sal-total"});ft.append(el("td",{colSpan:"6"},"Total "+y+" ("+recs.length+" bln)"),el("td",{className:"r"},fmtN(tot)),el("td",{className:"r"},bon?fmtN(bon):"–"),el("td",{className:"r sal-tcol"},fmtN(tot+bon)));tbl.appendChild(ft);}
   card.appendChild(tbl);ct.appendChild(card);
 }
 // ── Render ─────────────────────────────────────────────────────────
