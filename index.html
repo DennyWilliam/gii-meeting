@@ -55,6 +55,10 @@ textarea{resize:none;}
 .sal-tbl td{padding:6px;border-bottom:1px solid #f7f7f7;color:#374151;white-space:nowrap;}
 .sal-tbl .r{text-align:right;font-variant-numeric:tabular-nums;}
 .sal-tbl tr:hover td{background:#fafbff;}
+.sal-th{cursor:pointer;user-select:none;}
+.sal-th:hover{color:#374151!important;}
+.sal-th.on{color:#111827!important;}
+.sal-total td{font-weight:700;color:#111827!important;background:#f8fafc;border-top:2px solid #e5e7eb;border-bottom:none;}
 .sal-name{cursor:pointer;color:#1e293b!important;font-weight:500;}
 .sal-name:hover{text-decoration:underline;}
 .sal-tag{font-size:10px;background:#eef2ff;color:#6366f1;border-radius:10px;padding:1px 6px;margin-left:6px;font-weight:500;}
@@ -1712,12 +1716,20 @@ function buildSalaryContent(ct){
   h.appendChild(fx);card.appendChild(h);
   const q=S.sal.q.trim().toLowerCase();
   let list=ppl.filter(p=>(S.sal.dep==="all"||p.dep===S.sal.dep)&&(!q||(p.n+" "+p.pos).toLowerCase().includes(q)));
-  const sk=S.sal.sort;list.sort((a,b)=>sk==="n"?a.n.localeCompare(b.n):sk==="b"?(b.b-a.b):(b.g-a.g));
-  const tbl=el("table",{className:"sal-tbl"});
   const YR=S.sal.mode==="year";
-  const cols=[["n","Nama"],[null,"PT"],[null,"Departemen"],[null,"Divisi"],[null,"Posisi"],[null,"Level"],...(YR?[[null,"Bln"]]:[]),["g",YR?"Total gaji "+S.sal.year:"Gaji"],...(YR?[[null,"Rata-rata/bln"]]:[]),["b",YR?"Total bonus":"Bonus"]];
+  const NUM=["months","g","avg","b"];
+  const lvlKey=v=>String(v||"").split(".").map(x=>x.padStart(3,"0")).join(".");
+  const val=(p,k)=>k==="avg"?(p.months?p.g/p.months:0):k==="b"?(YR?p.b:(p.bRaw||0)):k==="lvl"?lvlKey(p.lvl):(p[k]??"");
+  const sk=S.sal.sort,dir=S.sal.dir||(NUM.includes(sk)?"desc":"asc");
+  list.sort((a,b)=>{const x=val(a,sk),y=val(b,sk);const c=NUM.includes(sk)?x-y:String(x).localeCompare(String(y),"id");return(dir==="asc"?c:-c)||a.n.localeCompare(b.n);});
+  h.firstChild.textContent="Daftar karyawan ("+list.length+")";
+  const tbl=el("table",{className:"sal-tbl"});
+  const cols=[["n","Nama"],["pt","PT"],["dep","Departemen"],["div","Divisi"],["pos","Posisi"],["lvl","Level"],...(YR?[["months","Bln"]]:[]),["g",YR?"Total gaji "+S.sal.year:"Gaji"],...(YR?[["avg","Rata-rata/bln"]]:[]),["b",YR?"Total bonus":"Bonus"]];
   const hr=el("tr",{});cols.forEach(([s,l],i)=>{
-    const th=el("th",{className:i>=6?"r":""},l+(s&&S.sal.sort===s?" ▾":""));if(s){th.style.cursor="pointer";th.onclick=()=>{S.sal.sort=s;render();};}hr.appendChild(th);});
+    const on=S.sal.sort===s;
+    const th=el("th",{className:(i>=6?"r ":"")+"sal-th"+(on?" on":""),title:"Urutkan"},l+(on?(dir==="asc"?" ▲":" ▼"):""));
+    th.onclick=()=>{if(S.sal.sort===s)S.sal.dir=dir==="asc"?"desc":"asc";else{S.sal.sort=s;S.sal.dir=NUM.includes(s)?"desc":"asc";}render();};
+    hr.appendChild(th);});
   tbl.appendChild(hr);
   list.forEach(p=>{const tr=el("tr",{});
     const nm=el("td",{className:"sal-name",onclick:()=>{S.sal.person=salKey(p.n);render();}},p.n);
@@ -1737,6 +1749,15 @@ function buildSalaryContent(ct){
       else{bt.textContent=p.bRaw==null?"✎":fmtN(p.bRaw);bt.className="r sal-bcell";bt.title="Klik untuk isi bonus";bt.onclick=()=>{S.sal.bonusEdit=salKey(p.n);render();};}
     } else bt.textContent=p.b?fmtN(p.b):"–";
     tr.appendChild(bt);tbl.appendChild(tr);});
+  // baris total sesuai filter
+  const tG=list.reduce((a,p)=>a+p.g,0),tB=list.reduce((a,p)=>a+(YR?p.b:(p.bRaw||0)),0),tN=list.filter(p=>p.g>0).length;
+  const ft=el("tr",{className:"sal-total"});
+  ft.appendChild(el("td",{colSpan:"6"},"Total"+(S.sal.dep!=="all"?" "+S.sal.dep:"")+(q?" (hasil cari)":"")+" · "+tN+" orang terima gaji"+(YR?" ("+A.ms.length+" bln)":"")));
+  if(YR)ft.appendChild(el("td",{},""));
+  ft.appendChild(el("td",{className:"r"},fmtN(tG)));
+  if(YR)ft.appendChild(el("td",{className:"r",title:"Total gaji ÷ jumlah bulan"},A.ms.length?fmtN(Math.round(tG/A.ms.length)):"–"));
+  ft.appendChild(el("td",{className:"r"},tB?fmtN(tB):"–"));
+  tbl.appendChild(ft);
   card.appendChild(el("div",{style:{overflowX:"auto"}},tbl));ct.appendChild(card);
 }
 function buildSalPerson(ct){
