@@ -1711,7 +1711,7 @@ function salExport(){
   ensureXlsx(()=>{const a=salActive();const lbl=S.sal.mode==="month"?S.sal.month:S.sal.year;
     const rows=[["Nama","PT","Departemen","Divisi","Posisi","Level","Gaji","Bonus","Total","Keterangan bonus"]];
     a.people.filter(p=>(S.sal.pt==="all"||p.pt===S.sal.pt)&&salDepOk(p.dep)&&(p.g>0||p.b>0)).sort((x,y)=>y.g-x.g).forEach(p=>rows.push([p.n,p.pt,p.dep,p.div,p.pos,p.lvl,p.g,p.b||null,p.g+p.b,p.notes.join(" | ")||null]));
-    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),"Salary "+lbl);XLSX.writeFile(wb,"salary-"+lbl+".xlsx");});
+    const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(rows);xlsFmt(ws,0);ws["!cols"]=[{wch:30},{wch:8},{wch:20},{wch:18},{wch:24},{wch:7},{wch:14},{wch:14},{wch:16},{wch:40}];XLSX.utils.book_append_sheet(wb,ws,"Salary "+lbl);XLSX.writeFile(wb,"salary-"+lbl+".xlsx");});
 }
 function salGroupTable(title,obj,nMonths){
   const YR=S.sal.mode==="year";
@@ -2304,12 +2304,18 @@ function buildPwModal(ct){
   ov.appendChild(md);ct.appendChild(ov);
   setTimeout(()=>{const f=md.querySelector("input");if(f&&!md.contains(document.activeElement))f.focus();},20);
 }
+// Format angka Excel: pemisah ribuan & persen (kolom yang judulnya mengandung "%")
+function xlsFmt(ws,hdrRow){
+  const rg=XLSX.utils.decode_range(ws["!ref"]||"A1");const pct=new Set();
+  for(let c=rg.s.c;c<=rg.e.c;c++){const h=ws[XLSX.utils.encode_cell({r:hdrRow,c})];if(h&&/%/.test(String(h.v)))pct.add(c);}
+  for(let r=rg.s.r;r<=rg.e.r;r++)for(let c=rg.s.c;c<=rg.e.c;c++){const cell=ws[XLSX.utils.encode_cell({r,c})];if(cell&&cell.t==="n")cell.z=pct.has(c)?"0.00%":"#,##0";}
+}
 // ── Export Excel Finance (tahun terpilih) ─────────────────────────
 function finExport(){
   ensureXlsx(()=>{
     const y=S.fin.year,wb=XLSX.utils.book_new();
-    const pc=(n,d)=>d>0?Math.round(n/d*10000)/100:null;
-    const sheet=(name,rows,widths)=>{const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=widths.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name);};
+    const pc=(n,d)=>d>0?Math.round(n/d*10000)/10000:null;
+    const sheet=(name,rows,widths)=>{const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=widths.map(w=>({wch:w}));xlsFmt(ws,2);XLSX.utils.book_append_sheet(wb,ws,name);};
     // Profit Loss
     const plM=finYearMonths("pl");
     const pl=[["Profit Loss "+y+" (Rp)"],[],["Bulan","Unit","Total sales","Sales","Gross profit","GP %","Marketing","Mkt %","Expenses","Exp %","Net profit","NP %"]];
