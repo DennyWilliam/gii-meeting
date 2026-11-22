@@ -1992,9 +1992,9 @@ function finParse(buf,fileName){
   // Pemeriksaan otomatis
   const checks=[];
   Object.entries(out).forEach(([k,d])=>{if(k.startsWith("__"))return;
-    if(d.pl&&d.pl.total){const s=d.pl.units.reduce((x,u)=>x+u.np,0);if(Math.abs(s-d.pl.total.np)>10)checks.push([false,finLbl(k)+": jumlah net profit unit ("+fmtN(s)+") ≠ TOTAL ("+fmtN(d.pl.total.np)+")"]);}
-    if(d.pl&&d.pl.total&&d.accSum&&d.accSum.labaBersih!=null){const ok=Math.abs(d.accSum.labaBersih-d.pl.total.np)<=10;checks.push([ok,finLbl(k)+": Laba Bersih Perbandingan "+(ok?"=":"≠")+" Net Profit Rangkuman"+(ok?"":" ("+fmtN(d.accSum.labaBersih)+" vs "+fmtN(d.pl.total.np)+")")]);}
-    if(d.ner){const ok=Math.abs(d.ner.ta-d.ner.tp)<=10;if(!ok)checks.push([false,finLbl(k)+": Total aktiva ≠ total pasiva ("+fmtN(d.ner.ta)+" vs "+fmtN(d.ner.tp)+")"]);}
+    if(d.pl&&d.pl.total){const s=d.pl.units.reduce((x,u)=>x+u.np,0);if(Math.abs(s-d.pl.total.np)>10)checks.push([false,finLbl(k)+": jumlah net profit unit ("+fmtN(s)+") ≠ TOTAL ("+fmtN(d.pl.total.np)+")",k,"pl"]);}
+    if(d.pl&&d.pl.total&&d.accSum&&d.accSum.labaBersih!=null){const ok=Math.abs(d.accSum.labaBersih-d.pl.total.np)<=10;checks.push([ok,finLbl(k)+": Laba Bersih Perbandingan "+(ok?"=":"≠")+" Net Profit Rangkuman"+(ok?"":" ("+fmtN(d.accSum.labaBersih)+" vs "+fmtN(d.pl.total.np)+") → dipakai Net Profit Rangkuman"),k,"acc"]);}
+    if(d.ner){const ok=Math.abs(d.ner.ta-d.ner.tp)<=10;if(!ok)checks.push([false,finLbl(k)+": Total aktiva ≠ total pasiva ("+fmtN(d.ner.ta)+" vs "+fmtN(d.ner.tp)+")",k,"ner"]);}
   });
   if(out.__stores&&rinMonth&&out[rinMonth]&&out[rinMonth].pl){
     const byU={};out.__stores.forEach(s=>byU[s.u]=(byU[s.u]||0)+s.np);
@@ -2117,7 +2117,8 @@ function buildFinUpload(ct){
     p.appendChild(rr);
     sec("ner","Neraca (4. Harta Rangkuman)",R.found.ner);
     const chk=el("div",{style:{marginTop:"8px"}});
-    R.checks.forEach(([ok,t])=>chk.appendChild(el("div",{className:ok?"fin-ok":"sal-up-w"},(ok?"✓ ":"⚠ ")+t)));
+    const selAny=k=>u.sel.pl.includes(k)||u.sel.acc.includes(k)||u.sel.ner.includes(k);
+    R.checks.filter(([ok,t,k,sc])=>!k||(sc?u.sel[sc].includes(k):selAny(k))).forEach(([ok,t])=>chk.appendChild(el("div",{className:ok?"fin-ok":"sal-up-w"},(ok?"✓ ":"⚠ ")+t)));
     R.warn.forEach(t=>chk.appendChild(el("div",{className:"sal-up-w"},"• "+t)));
     p.appendChild(chk);
     p.appendChild(el("div",{style:{fontSize:"11.5px",color:"#9ca3af",marginTop:"6px"}},"Bulan bergaris kuning = sudah ada di aplikasi dan akan diganti (versi lama otomatis dibackup)."));
