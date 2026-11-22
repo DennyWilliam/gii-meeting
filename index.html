@@ -2217,7 +2217,7 @@ function finColor(u){u=String(u||"").toUpperCase();return FIN_COLOR[u]||FIN_COLO
 function finName(u){u=String(u||"");if(/^(NVMEE|HQ)$/i.test(u))return u.toUpperCase();return u.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bSby\b/,"SBY");}
 function finS(v){if(v==null)return"–";if(S.fin.full)return fmtN(v);const a=Math.abs(v);if(a<0.5)return"0";
   const s=a>=1e9?(a/1e9).toLocaleString("id-ID",{minimumFractionDigits:2,maximumFractionDigits:2})+" M":(a/1e6).toLocaleString("id-ID",{minimumFractionDigits:1,maximumFractionDigits:1})+" jt";return(v<0?"−":"")+s;}
-function finTd(v,cls){return el("td",{className:"r"+(v<0?" fin-neg":"")+(cls?" "+cls:""),title:v==null?"":"Rp "+fmtN(v)},finS(v));}
+function finTd(v,cls,full){return el("td",{className:"r"+(v<0?" fin-neg":"")+(cls?" "+cls:""),title:v==null||full?"":"Rp "+fmtN(v)},full?(v==null?"–":fmtN(v)):finS(v));}
 function finPc(n,d,cls){const t=d>0?finPct(n,d):"–";return el("td",{className:"r fin-pc"+(n<0&&d>0?" fin-neg":"")+(cls?" "+cls:"")},t);}
 function finDelta(cur,prev){if(prev==null||!prev)return null;const d=(cur-prev)/Math.abs(prev)*100;return(d>=0?"▲ ":"▼ ")+Math.abs(d).toLocaleString("id-ID",{maximumFractionDigits:1})+"%";}
 function ensureChart(cb){if(window.Chart){cb();return;}const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";sc.onload=cb;document.head.appendChild(sc);}
@@ -2244,7 +2244,7 @@ function buildFinPL(ct){
   const t=el("table",{className:"fin-t2"});
   const hr=el("tr",{});["Unit","Sales","Gross profit","%","Marketing","%","Biaya","Net profit","%"].forEach((l,i)=>hr.appendChild(el("th",{className:i?"r":""},l)));t.appendChild(hr);
   const row=(o,cls,nameEl)=>{const tr=el("tr",{className:cls});tr.appendChild(el("td",{},nameEl));
-    tr.append(finTd(o.s),finTd(o.g),finPc(o.g,o.s),finTd(o.mk),o.mk?finPc(o.mk,o.s):el("td",{className:"r fin-pc"},"–"),finTd(o.ex),finTd(o.np,"fin-npc"),finPc(o.np,o.s,"fin-npc"));return tr;};
+    tr.append(finTd(o.s,"",1),finTd(o.g,"",1),finPc(o.g,o.s),finTd(o.mk,"",1),o.mk?finPc(o.mk,o.s):el("td",{className:"r fin-pc"},"–"),finTd(o.ex,"",1),finTd(o.np,"fin-npc",1),finPc(o.np,o.s,"fin-npc"));return tr;};
   units.forEach(o=>{
     const st=finStoresFor(ms,o.u),open=!!S.fin.open[o.u],col=finColor(o.u);
     const nm=el("div",{className:"fin-un"},[el("span",{className:"fin-chev"},st.length?(open?"▾":"▸"):""),el("span",{className:"fin-dot",style:{background:col}}),finName(o.u)]);
