@@ -1704,6 +1704,7 @@ function buildSalaryTopbar(tb){
   const sp=el("div",{});sp.style.flex="1";tb.appendChild(sp);
   tb.appendChild(el("button",{className:"ghost-btn on",onclick:salPickFile},"⬆ Upload Excel"));
   tb.appendChild(el("button",{className:"ghost-btn",onclick:salExport},"⬇ Excel"));
+  tb.appendChild(el("button",{className:"ghost-btn",onclick:pwOpen},"🔑 Ganti kata sandi"));
   tb.appendChild(el("button",{className:"ghost-btn",title:"Kunci menu Salary di perangkat ini",onclick:()=>{setSalPass("");S.sal={...S.sal,months:{},loaded:false,needPass:true,person:null,up:null};render();}},"🔒 Kunci"));
 }
 function salExport(){
@@ -2080,6 +2081,8 @@ function buildFinanceTopbar(tb){
   }
   const sp=el("div",{});sp.style.flex="1";tb.appendChild(sp);
   tb.appendChild(el("button",{className:"ghost-btn on",onclick:finPickFile},"⬆ Upload laporan"));
+  tb.appendChild(el("button",{className:"ghost-btn",title:"Export semua data Finance tahun "+S.fin.year,onclick:finExport},"⬇ Excel"));
+  tb.appendChild(el("button",{className:"ghost-btn",onclick:pwOpen},"🔑 Ganti kata sandi"));
   tb.appendChild(el("button",{className:"ghost-btn",title:"Kunci Finance & Salary di perangkat ini",onclick:()=>{setSalPass("");S.fin={...S.fin,months:{},loaded:false};S.sal={...S.sal,months:{},loaded:false,needPass:true};render();}},"🔒 Kunci"));
 }
 function finYearMonths(key){return finMonthsWith(key).filter(m=>m.startsWith(S.fin.year));}
@@ -2274,6 +2277,73 @@ function buildFinCompare(ct){
   }
   md.insertBefore(el("div",{style:{overflow:"auto",maxHeight:"62vh"}},t),md.lastChild);
   ov.appendChild(md);ct.appendChild(ov);
+}
+// ── Ganti kata sandi (Salary & Finance) ───────────────────────────
+S.pw=null;
+function pwOpen(){S.pw={old:"",n1:"",n2:"",err:"",saving:false};render();}
+async function pwSave(){
+  const p=S.pw;p.err="";
+  if(!p.old||!p.n1){p.err="Isi semua kolom.";render();return;}
+  if(p.n1.length<10){p.err="Kata sandi baru minimal 10 karakter.";render();return;}
+  if(p.n1!==p.n2){p.err="Ulangi kata sandi baru tidak sama.";render();return;}
+  if(p.n1===p.old){p.err="Kata sandi baru sama dengan yang lama.";render();return;}
+  p.saving=true;render();
+  try{await rpc("salary_change_pass",{p_old:p.old,p_new:p.n1});setSalPass(p.n1);S.pw=null;showToast("Kata sandi diganti ✓");}
+  catch(e){p.saving=false;p.err=/unauthorized/.test(e.message)?"Kata sandi lama salah.":/too_short/.test(e.message)?"Kata sandi baru minimal 10 karakter.":"Gagal: "+e.message;render();}
+}
+function buildPwModal(ct){
+  const p=S.pw;
+  const ov=el("div",{className:"fin-ov",onclick:e=>{if(e.target===ov&&!p.saving){S.pw=null;render();}}});
+  const md=el("div",{className:"fin-md",style:{width:"min(380px,100%)"}});
+  md.appendChild(el("div",{className:"fin-mh"},[el("b",{},"🔑 Ganti kata sandi Salary & Finance")]));
+  const mk=(k,ph)=>{const i=el("input",{type:"password",className:"set-inp",placeholder:ph,autocomplete:k==="old"?"current-password":"new-password"});i.value=p[k];i.style.cssText="width:100%;margin-bottom:8px;";i.oninput=e=>{p[k]=e.target.value;};i.onkeydown=e=>{if(e.key==="Enter")pwSave();if(e.key==="Escape"){S.pw=null;render();}};return i;};
+  md.append(mk("old","Kata sandi lama"),mk("n1","Kata sandi baru (min. 10 karakter)"),mk("n2","Ulangi kata sandi baru"));
+  if(p.err)md.appendChild(el("div",{style:{color:"#dc2626",fontSize:"12px",marginBottom:"8px"}},p.err));
+  md.appendChild(el("div",{style:{fontSize:"11.5px",color:"#9ca3af",marginBottom:"10px"}},"Perangkat lain (iPhone, browser lain) harus memasukkan kata sandi baru."));
+  md.appendChild(el("div",{style:{display:"flex",gap:"8px"}},[el("button",{className:"save-btn",onclick:pwSave},p.saving?"Menyimpan...":"Simpan"),el("button",{className:"ghost-btn",onclick:()=>{S.pw=null;render();}},"Batal")]));
+  ov.appendChild(md);ct.appendChild(ov);
+  setTimeout(()=>{const f=md.querySelector("input");if(f&&!md.contains(document.activeElement))f.focus();},20);
+}
+// ── Export Excel Finance (tahun terpilih) ─────────────────────────
+function finExport(){
+  ensureXlsx(()=>{
+    const y=S.fin.year,wb=XLSX.utils.book_new();
+    const pc=(n,d)=>d>0?Math.round(n/d*10000)/100:null;
+    const sheet=(name,rows,widths)=>{const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=widths.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name);};
+    // Profit Loss
+    const plM=finYearMonths("pl");
+    const pl=[["Profit Loss "+y+" (Rp)"],[],["Bulan","Unit","Total sales","Sales","Gross profit","GP %","Marketing","Mkt %","Expenses","Exp %","Net profit","NP %"]];
+    const line=(m,u,o)=>pl.push([m,u,o.ts,o.s,o.g,pc(o.g,o.s),o.mk,pc(o.mk,o.s),o.ex,pc(o.ex,o.s),o.np,pc(o.np,o.s)]);
+    plM.forEach(m=>{const r=finUnits([m]);r.units.forEach(o=>line(finLbl(m),o.u,o));line(finLbl(m),"TOTAL",r.T);pl.push([]);});
+    if(plM.length){const r=finUnits(plM);r.units.forEach(o=>line("Total "+y,o.u,o));line("Total "+y,"TOTAL",r.T);}
+    sheet("Profit Loss",pl,[16,14,16,16,16,8,16,8,16,8,16,8]);
+    // Rincian toko
+    const stM=finYearMonths("stores");
+    if(stM.length){const st=[["Rincian toko "+y+" (Rp)"],[],["Bulan","Unit","Kode toko","Total sales","Sales","Gross profit","Marketing","Gaji","Biaya gudang","Biaya tim","Biaya HQ","Pend. lain HQ","Expenses","Net profit","NP %"]];
+      stM.forEach(m=>S.fin.months[m].data.stores.forEach(s=>st.push([finLbl(m),s.u,s.k,s.ts,s.s,s.g,s.mk,s.gaji,s.gud,s.tim,s.hq,s.lain,s.ex,s.np,pc(s.np,s.s)])));
+      sheet("Rincian Toko",st,[16,12,12,16,16,16,16,14,14,14,14,14,16,16,8]);}
+    // Pengeluaran
+    const exM=finYearMonths("acc");
+    if(exM.length){
+      const byM=exM.map(m=>{const o={};S.fin.months[m].data.acc.forEach(a=>o[a.c]=a);return o;});
+      const codes=[];exM.forEach(m=>S.fin.months[m].data.acc.forEach(a=>{if(!codes.find(x=>x.c===a.c))codes.push({c:a.c,n:a.n});}));
+      const ex=[["Pengeluaran "+y+" (Rp)"],[],["Kode","Akun",...exM.map(finShort),"Total"]];const GT=exM.map(()=>0);
+      finExGroups().forEach(([g,test])=>{const rows=codes.filter(test);if(!rows.length)return;
+        const sums=exM.map((m,i)=>rows.reduce((x,a)=>x+(byM[i][a.c]?.v||0),0));sums.forEach((v,i)=>GT[i]+=v);
+        ex.push(["",g.toUpperCase(),...sums,sums.reduce((a,b)=>a+b,0)]);
+        rows.forEach(a=>{const v=exM.map((m,i)=>byM[i][a.c]?.v||0);ex.push([a.c,a.n,...v,v.reduce((p,q)=>p+q,0)]);});});
+      ex.push(["","JUMLAH BEBAN",...GT,GT.reduce((a,b)=>a+b,0)]);
+      sheet("Pengeluaran",ex,[16,42,...exM.map(()=>16),18]);}
+    // Neraca
+    const nM=finYearMonths("ner");
+    if(nM.length){const ne=[["Neraca "+y+" (Rp)"],[],["Kelompok","Akun",...nM.map(finShort)]];
+      [["a","AKTIVA","ta"],["p","PASIVA","tp"]].forEach(([g,t,tk])=>{const names=[];nM.forEach(m=>S.fin.months[m].data.ner[g].forEach(([n])=>{if(!names.includes(n))names.push(n);}));
+        names.forEach(n=>ne.push([t,n,...nM.map(m=>{const r=S.fin.months[m].data.ner[g].find(x=>x[0]===n);return r?r[1]:null;})]));
+        ne.push([t,"TOTAL "+t,...nM.map(m=>S.fin.months[m].data.ner[tk])]);ne.push([]);});
+      sheet("Neraca",ne,[10,20,...nM.map(()=>18)]);}
+    if(!wb.SheetNames.length){showToast("Belum ada data untuk "+y);return;}
+    XLSX.writeFile(wb,"MyWorking-Finance-"+y+".xlsx");
+  });
 }
 // ── Render ─────────────────────────────────────────────────────────
 function render(){
@@ -2486,6 +2556,7 @@ function render(){
   // ── PLACEHOLDER Finance / Salary
   if(S.view==="salary"){buildSalaryContent(content);}
   if(S.view==="finance"){buildFinanceContent(content);}
+  if(S.pw&&(S.view==="finance"||S.view==="salary"))buildPwModal(content);
 
   // ── MEETING
   if(S.view==="meeting"){
