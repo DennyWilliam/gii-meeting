@@ -170,7 +170,10 @@ textarea{resize:none;}
 .fin-seg{display:flex;background:#f3f4f6;border-radius:8px;padding:2px;flex-wrap:wrap;}
 .fin-seg button{border:none;background:none;padding:4px 10px;border-radius:6px;font-size:11.5px;color:#6b7280;cursor:pointer;}
 .fin-seg button.on{background:#fff;color:#111827;font-weight:600;box-shadow:0 0 0 1px #e5e7eb;}
-.fin-tgl{display:flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;color:#6b7280;cursor:pointer;}
+.fin-tu{font-size:12px;}
+.fin-tu td,.fin-tu th{padding-left:6px;padding-right:6px;}
+.fin-tu .fin-pc{width:46px;}
+.fin-tgl{white-space:nowrap;display:flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;color:#6b7280;cursor:pointer;}
 .fin-tgl i{display:inline-block;width:28px;height:16px;border-radius:9px;background:#e5e7eb;position:relative;transition:.15s;}
 .fin-tgl i:after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:.15s;}
 .fin-tgl.on{color:#111827;}
@@ -2233,7 +2236,7 @@ function buildFinPL(ct){
   const card=(color,icon,label,val,subs,valCls)=>{const c=el("div",{className:"fin-kc",style:{borderTopColor:color}});
     c.append(el("div",{className:"fin-kl"},icon+" "+label),el("div",{className:"fin-kv"+(valCls?" "+valCls:""),title:"Rp "+fmtN(val)},"Rp "+finS(val)));
     const sb=el("div",{className:"fin-ks"});subs.filter(Boolean).forEach(s=>sb.appendChild(el("span",{className:"fin-kb"},s)));c.appendChild(sb);k.appendChild(c);};
-  card("#2563EB","🛒","Total sales"+(YR?" "+S.fin.year:""),T.ts,[P&&finDelta(T.ts,P.ts)+pl,"Sales bersih "+finS(T.s)]);
+  card("#2563EB","🛒","Sales"+(YR?" "+S.fin.year:""),T.s,[P&&finDelta(T.s,P.s)+pl,"Total sales "+finS(T.ts)]);
   card("#6D4FD8","📊","Gross profit",T.g,["Margin "+finPct(T.g,T.s),P&&finDelta(T.g,P.g)+pl]);
   card("#F59E0B","🧾","Marketing + biaya",T.mk+T.ex,["Mkt "+finPct(T.mk,T.s)+" · Biaya "+finPct(T.ex,T.s),P&&finDelta(T.mk+T.ex,P.mk+P.ex)+pl]);
   card("#10B981","💰","Net profit",T.np,["NP "+finPct(T.np,T.s),P&&finDelta(T.np,P.np)+pl],T.np<0?"fin-neg":"");
@@ -2241,10 +2244,10 @@ function buildFinPL(ct){
   // tabel per unit
   const box=el("div",{className:"fin-card"});
   box.appendChild(el("div",{className:"fin-ch"},[el("b",{},"Per bisnis unit · "+(YR?"Tahun "+S.fin.year+" ("+ms.length+" bln)":finLbl(S.fin.month))),el("span",{},"klik brand untuk buka / tutup rincian toko")]));
-  const t=el("table",{className:"fin-t2"});
-  const hr=el("tr",{});["Unit","Sales","Gross profit","%","Marketing","%","Biaya","Net profit","%"].forEach((l,i)=>hr.appendChild(el("th",{className:i?"r":""},l)));t.appendChild(hr);
+  const t=el("table",{className:"fin-t2 fin-tu"});
+  const hr=el("tr",{});["Unit","Total sales","Sales","Gross profit","%","Marketing","%","Biaya","Net profit","%"].forEach((l,i)=>hr.appendChild(el("th",{className:i?"r":""},l)));t.appendChild(hr);
   const row=(o,cls,nameEl)=>{const tr=el("tr",{className:cls});tr.appendChild(el("td",{},nameEl));
-    tr.append(finTd(o.s,"",1),finTd(o.g,"",1),finPc(o.g,o.s),finTd(o.mk,"",1),o.mk?finPc(o.mk,o.s):el("td",{className:"r fin-pc"},"–"),finTd(o.ex,"",1),finTd(o.np,"fin-npc",1),finPc(o.np,o.s,"fin-npc"));return tr;};
+    tr.append(finTd(o.ts,"",1),finTd(o.s,"",1),finTd(o.g,"",1),finPc(o.g,o.s),finTd(o.mk,"",1),o.mk?finPc(o.mk,o.s):el("td",{className:"r fin-pc"},"–"),finTd(o.ex,"",1),finTd(o.np,"fin-npc",1),finPc(o.np,o.s,"fin-npc"));return tr;};
   units.forEach(o=>{
     const st=finStoresFor(ms,o.u),open=!!S.fin.open[o.u],col=finColor(o.u);
     const nm=el("div",{className:"fin-un"},[el("span",{className:"fin-chev"},st.length?(open?"▾":"▸"):""),el("span",{className:"fin-dot",style:{background:col}}),finName(o.u)]);
@@ -2252,10 +2255,10 @@ function buildFinPL(ct){
     if(st.length)tr.onclick=()=>{S.fin.open[o.u]=!open;render();};
     t.appendChild(tr);
     if(open){
-      const sh=el("tr",{className:"fin-sh"});sh.appendChild(el("td",{colSpan:"9",style:{borderLeftColor:col}},st.length+" toko · urut dari sales terbesar"));t.appendChild(sh);
+      const sh=el("tr",{className:"fin-sh"});sh.appendChild(el("td",{colSpan:"10",style:{borderLeftColor:col}},st.length+" toko · urut dari sales terbesar"));t.appendChild(sh);
       st.sort((a,b)=>b.s-a.s).forEach(s=>{const r=row(s,"fin-st",s.k);r.firstChild.style.borderLeftColor=col;
         const raw=ms.flatMap(m=>(S.fin.months[m]?.data?.stores||[]).filter(x=>x.k===s.k));
-        if(raw.length){const sum=f=>raw.reduce((a,x)=>a+(x[f]||0),0);r.children[6].title="Gaji "+fmtN(sum("gaji"))+"\nBiaya gudang "+fmtN(sum("gud"))+"\nBiaya tim "+fmtN(sum("tim"))+"\nBiaya HQ "+fmtN(sum("hq"))+"\nPendapatan lain HQ −"+fmtN(sum("lain"))+"\n= Rp "+fmtN(s.ex);}
+        if(raw.length){const sum=f=>raw.reduce((a,x)=>a+(x[f]||0),0);r.children[7].title="Gaji "+fmtN(sum("gaji"))+"\nBiaya gudang "+fmtN(sum("gud"))+"\nBiaya tim "+fmtN(sum("tim"))+"\nBiaya HQ "+fmtN(sum("hq"))+"\nPendapatan lain HQ −"+fmtN(sum("lain"))+"\n= Rp "+fmtN(s.ex);}
         t.appendChild(r);});
     }
   });
@@ -2333,7 +2336,7 @@ function buildFinEx(ct){
   groups.forEach(G=>{
     const sh=el("tr",{className:"fin-nsub"});sh.appendChild(el("td",{},G.g));sh.appendChild(el("td",{colSpan:String(ms.length+1)},""));t.appendChild(sh);
     G.rows.forEach(r=>{if(S.fin.hideZero&&r.v.every(v=>!v))return;
-      const tr=el("tr",{className:"fin-ea"});tr.appendChild(el("td",{},[el("span",{className:"fin-code"},r.c),r.n]));r.v.forEach(v=>tr.appendChild(finCellFull(v)));tr.appendChild(finCellFull(r.t,"fin-tc"));t.appendChild(tr);});
+      const tr=el("tr",{className:"fin-ea"});tr.appendChild(el("td",{title:r.c},r.n));r.v.forEach(v=>tr.appendChild(finCellFull(v)));tr.appendChild(finCellFull(r.t,"fin-tc"));t.appendChild(tr);});
     sumRow("Total "+G.g,G.sums,"fin-gtot");
   });
   sumRow("Jumlah Beban",GT,"fin-tot");
