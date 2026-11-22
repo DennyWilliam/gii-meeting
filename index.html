@@ -2284,12 +2284,12 @@ function pwOpen(){S.pw={old:"",n1:"",n2:"",err:"",saving:false};render();}
 async function pwSave(){
   const p=S.pw;p.err="";
   if(!p.old||!p.n1){p.err="Isi semua kolom.";render();return;}
-  if(p.n1.length<10){p.err="Kata sandi baru minimal 10 karakter.";render();return;}
+  if(p.n1.length<6){p.err="Kata sandi baru minimal 6 karakter.";render();return;}
   if(p.n1!==p.n2){p.err="Ulangi kata sandi baru tidak sama.";render();return;}
   if(p.n1===p.old){p.err="Kata sandi baru sama dengan yang lama.";render();return;}
   p.saving=true;render();
   try{await rpc("salary_change_pass",{p_old:p.old,p_new:p.n1});setSalPass(p.n1);S.pw=null;showToast("Kata sandi diganti ✓");}
-  catch(e){p.saving=false;p.err=/unauthorized/.test(e.message)?"Kata sandi lama salah.":/too_short/.test(e.message)?"Kata sandi baru minimal 10 karakter.":"Gagal: "+e.message;render();}
+  catch(e){p.saving=false;p.err=/unauthorized/.test(e.message)?"Kata sandi lama salah.":/too_short/.test(e.message)?"Kata sandi baru minimal 6 karakter.":"Gagal: "+e.message;render();}
 }
 function buildPwModal(ct){
   const p=S.pw;
@@ -2297,7 +2297,7 @@ function buildPwModal(ct){
   const md=el("div",{className:"fin-md",style:{width:"min(380px,100%)"}});
   md.appendChild(el("div",{className:"fin-mh"},[el("b",{},"🔑 Ganti kata sandi Salary & Finance")]));
   const mk=(k,ph)=>{const i=el("input",{type:"password",className:"set-inp",placeholder:ph,autocomplete:k==="old"?"current-password":"new-password"});i.value=p[k];i.style.cssText="width:100%;margin-bottom:8px;";i.oninput=e=>{p[k]=e.target.value;};i.onkeydown=e=>{if(e.key==="Enter")pwSave();if(e.key==="Escape"){S.pw=null;render();}};return i;};
-  md.append(mk("old","Kata sandi lama"),mk("n1","Kata sandi baru (min. 10 karakter)"),mk("n2","Ulangi kata sandi baru"));
+  md.append(mk("old","Kata sandi lama"),mk("n1","Kata sandi baru (min. 6 karakter)"),mk("n2","Ulangi kata sandi baru"));
   if(p.err)md.appendChild(el("div",{style:{color:"#dc2626",fontSize:"12px",marginBottom:"8px"}},p.err));
   md.appendChild(el("div",{style:{fontSize:"11.5px",color:"#9ca3af",marginBottom:"10px"}},"Perangkat lain (iPhone, browser lain) harus memasukkan kata sandi baru."));
   md.appendChild(el("div",{style:{display:"flex",gap:"8px"}},[el("button",{className:"save-btn",onclick:pwSave},p.saving?"Menyimpan...":"Simpan"),el("button",{className:"ghost-btn",onclick:()=>{S.pw=null;render();}},"Batal")]));
